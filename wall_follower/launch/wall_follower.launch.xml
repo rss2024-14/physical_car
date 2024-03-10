@@ -1,0 +1,8 @@
+<launch>
+  <!-- Launch the wall follower with parameters -->
+  <node pkg="wall_follower" name="wall_follower" exec="wall_follower" output="screen">
+    <param from="$(find-pkg-share wall_follower)/params.yaml"/>
+  </node>
+
+  <!-- <node pkg="wall_follower" name="scan_reader" exec="scan_reader" output="log"/> -->
+</launch>
