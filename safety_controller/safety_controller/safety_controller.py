@@ -36,11 +36,11 @@ class SafetyController(Node):
             self.safety_callback,
             10)
 
-        self.drive_cmds = self.create_subscription(
-            AckermannDriveStamped,
-            self.DRIVE_TOPIC,
-            self.drive_callback,
-            10)
+        # self.drive_cmds = self.create_subscription(
+        #     AckermannDriveStamped,
+        #     self.DRIVE_TOPIC,
+        #     self.driver_callback,
+        #     10)
         
         self.safety_cmds = self.create_publisher(
             AckermannDriveStamped,
@@ -59,7 +59,7 @@ class SafetyController(Node):
 
         # Braking distance for a car is proportional to the square of the car's speed (Must be changed for physical car)                                                          
         if ahead_distance < self.VELOCITY * 0.5:
-            self.get_logger().info("Stopping car for safety")
+            self.get_logger().info("!!!!!!!!!!!!!!! SAFETY INTERCEPT.")
             safety_cmd = AckermannDriveStamped()
             safety_cmd.header.stamp = self.get_clock().now().to_msg()
             safety_cmd.header.frame_id = "/base_link"
@@ -67,8 +67,8 @@ class SafetyController(Node):
             safety_cmd.drive.steering_angle = 0.0
             self.safety_cmds.publish(safety_cmd)
 
-    def driver_callback(self, msg):
-        pass
+    # def driver_callback(self, msg):
+    #     pass
 
 
 def main():

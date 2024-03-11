@@ -44,16 +44,16 @@ class WallFollower(Node):
             self.odom_callback,
             10)
 
-        self.L1 = .8
+        self.L1 = 1
         self.L = .3 # car length
         self.heading = 0
 
-        self.Kp = 4.3
+        self.Kp = 10
         self.Kd = 0
         self.prev_error = 0
         self.dedt = 0
         self.ref = self.DESIRED_DISTANCE
-        self.num_wall_pts = 200
+        self.num_wall_pts = 260
 		
 	# TODO: Initialize your publishers and subscribers here
         self.line_pub = self.create_publisher(Marker, self.WALL_TOPIC, 1)
@@ -82,20 +82,23 @@ class WallFollower(Node):
 
     def driver_callback(self, msg):
         # >>> SCAN FILTERING
-        desired_angles = np.array([-70., 70.]) #degrees. default: [-135, 135]
+        to_left = self.SIDE == 1
+        if to_left: 
+            desired_angles = np.array([-105., 80.]) #degrees. default: [-135, 135]
+        else:
+            desired_angles = np.array([-80., 105.]) #degrees. default: [-135, 135]
         scan = self.compute_filtered_msg(msg, desired_angles)
         num_pts = len(scan.ranges)
         self.filtered_scan_pub.publish(scan)
 
         # >>> SCAN BIASING
-        num_biased_pts = 60 # num center pts with distance bias
+        num_biased_pts = 65 # num center pts with distance bias
         left_region = scan.ranges[num_pts//2 + num_biased_pts :]
         bias_region = scan.ranges[num_pts//2 - num_biased_pts : num_pts//2 + num_biased_pts]
         right_region = scan.ranges[: num_pts//2 - num_biased_pts]
 
         # >>> SCAN HALVING
-        to_left = self.SIDE == 1
-        bias = 0.3
+        bias = .6
         half_scan = []
         if (to_left): #angles > 0
             half_scan = np.concatenate( ( bias * np.array(bias_region), left_region) )
@@ -103,6 +106,7 @@ class WallFollower(Node):
             half_scan = np.concatenate( ( right_region, bias * np.array(bias_region) ) )
 
         # >>> SCAN CLOSEST PTS ID
+        half_scan = half_scan[half_scan >= .1]
         closest_pts = np.sort(half_scan)[:self.num_wall_pts]
         closest_angles = np.array([])
 
@@ -119,7 +123,7 @@ class WallFollower(Node):
         lin_reg = np.polyfit(closest_xs, closest_ys, 1)
         m = lin_reg[0]
         b = lin_reg[1]
-        sample_pts = np.arange(-2, 2, .1)
+        sample_pts = np.arange(-1, 1, .04)
         y = m * sample_pts + b
 
         # >>> CONVENIENCE PLOTS
@@ -156,11 +160,11 @@ class WallFollower(Node):
         drive_cmd.header.stamp = self.get_clock().now().to_msg()
         drive_cmd.header.frame_id = "/base_link"
         drive_cmd.drive.speed = self.VELOCITY
-        drive_cmd.drive.steering_angle = np.clip(delta, -60*np.pi/180, 60*np.pi/180)
+        drive_cmd.drive.steering_angle = delta # np.clip(delta, -60*np.pi/180, 60*np.pi/180)
         # self.get_logger().info("%s perp_dist\n%s eta\n%s delta" % (perp_dist, eta * 180/np.pi, delta*180/np.pi))
         self.drive_pub.publish(drive_cmd)
         
-        self.get_logger().info("%s angle min, %s angle_max" % (scan.angle_min * 180/np.pi, scan.angle_max * 180/np.pi))
+        self.get_logger().info("%s steering angle, %s num_pts" % (drive_cmd.drive.steering_angle*180/np.pi, num_pts) )
 
     def odom_callback(self, msg):
         q = [
