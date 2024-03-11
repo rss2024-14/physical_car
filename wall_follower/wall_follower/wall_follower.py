@@ -59,7 +59,7 @@ class WallFollower(Node):
         self.line_pub = self.create_publisher(Marker, self.WALL_TOPIC, 1)
         self.lookahead_pub = self.create_publisher(Marker, self.LOOKAHEAD_TOPIC, 1)
         self.filtered_scan_pub = self.create_publisher(LaserScan, self.FILTERED_SCAN_TOPIC, 10)
-        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/vesc/input/navigation", 1)
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, self.DRIVE_TOPIC, 1)
         self.subscription  # prevent unused variable warning
     
     def compute_filtered_msg(self, scan, desired_angles):

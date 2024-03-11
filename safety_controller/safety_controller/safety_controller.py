@@ -16,6 +16,7 @@ class SafetyController(Node):
         # Declare parameters to make them available for use                                                                                                                        
         self.declare_parameter("scan_topic", "default")
         self.declare_parameter("drive_topic", "default")
+        self.declare_parameter("safety_topic", "default")
         self.declare_parameter("side", "default")
         self.declare_parameter("velocity", "default")
         self.declare_parameter("desired_distance", "default")
@@ -23,6 +24,7 @@ class SafetyController(Node):
         # Fetch constants from the ROS parameter server                                                                                                                            
         self.SCAN_TOPIC = self.get_parameter('scan_topic').get_parameter_value().string_value
         self.DRIVE_TOPIC = self.get_parameter('drive_topic').get_parameter_value().string_value
+        self.SAFETY_TOPIC = self.get_parameter('safety_topic').get_parameter_value().string_value
         self.SIDE = self.get_parameter('side').get_parameter_value().integer_value
         self.VELOCITY = self.get_parameter('velocity').get_parameter_value().double_value
         self.DESIRED_DISTANCE = self.get_parameter('desired_distance').get_parameter_value().double_value
@@ -36,13 +38,13 @@ class SafetyController(Node):
 
         self.drive_cmds = self.create_subscription(
             AckermannDriveStamped,
-            "/vesc/low_level/ackermann_cmd'"
+            self.DRIVE_TOPIC,
             self.drive_callback,
             10)
         
         self.safety_cmds = self.create_publisher(
             AckermannDriveStamped,
-            "/vesc/input/safety",
+            self.SAFETY_TOPIC,
             1)
 
         self.subscription  # prevent unused variable warning

@@ -7,3 +7,7 @@
 # Logs and databases #
 ######################
 *.log
+
+# ROS-specific fles #
+######################
+*__pycache__*
