@@ -11,3 +11,6 @@
 # ROS-specific fles #
 ######################
 *__pycache__*
+build/
+install/
+log/

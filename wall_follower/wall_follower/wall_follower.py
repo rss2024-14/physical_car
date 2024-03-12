@@ -7,9 +7,8 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from visualization_msgs.msg import Marker
 from nav_msgs.msg import Odometry
 import tf_transformations
-
+from matplotlib import pyplot as plt
 from wall_follower.visualization_tools import VisualizationTools
-
 
 class WallFollower(Node):
     def __init__(self):
@@ -32,6 +31,11 @@ class WallFollower(Node):
         self.LOOKAHEAD_TOPIC = "/lookahead"
         self.WALL_TOPIC = "/wall"
 
+        self.perp_dists = []
+        self.scan_times = []
+
+        self.i = 0
+
         self.subscription = self.create_subscription(
             LaserScan,
             self.SCAN_TOPIC,
@@ -48,8 +52,8 @@ class WallFollower(Node):
         self.L = .3 # car length
         self.heading = 0
 
-        self.Kp = 10
-        self.Kd = 0
+        self.Kp = 3
+        self.Kd = 1
         self.prev_error = 0
         self.dedt = 0
         self.ref = self.DESIRED_DISTANCE
@@ -81,6 +85,7 @@ class WallFollower(Node):
         return filtered_scan
 
     def driver_callback(self, msg):
+        self.i += 1
         # >>> SCAN FILTERING
         to_left = self.SIDE == 1
         if to_left: 
@@ -137,6 +142,8 @@ class WallFollower(Node):
 
         # >>> PURE PURSUIT
         perp_dist = np.abs(b) / np.sqrt(m**2 + 1)
+        self.perp_dists.append(perp_dist)
+        self.scan_times.append(scan.scan_time)
 
         if (self.L1 <= perp_dist):
             angle_robot_to_intersect = 0
@@ -166,6 +173,14 @@ class WallFollower(Node):
         
         self.get_logger().info("%s steering angle, %s num_pts" % (drive_cmd.drive.steering_angle*180/np.pi, num_pts) )
 
+        # if (self.i == 1100):
+        #     plt.plot(scan_times, perp_dists)
+        #     plt.show()
+        #     # np.array(self.perp_dists).tofile('perp_dist.csv', sep=',')
+        #     # np.array(self.scan_times).tofile('scan_times.csv', sep=',')
+        # if (self.i > 1100):
+        #     self.get_logger().info("SAVED")
+
     def odom_callback(self, msg):
         q = [
             msg.pose.pose.orientation.x,
@@ -185,7 +200,6 @@ def main():
     rclpy.spin(wall_follower)
     wall_follower.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

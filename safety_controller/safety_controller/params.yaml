@@ -1,4 +1,4 @@
-wall_follower:
+safety_controller:
   ros__parameters:
     scan_topic: "/scan"
     drive_topic: "/vesc/low_level/ackermann_cmd"
