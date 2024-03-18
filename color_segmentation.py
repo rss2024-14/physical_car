@@ -69,6 +69,7 @@ def cd_color_segmentation(img, template=None):
 
 if __name__ == "__main__":
 
+        
 	img = cv2.imread('test1.jpg')
 
 	image_print(img)
