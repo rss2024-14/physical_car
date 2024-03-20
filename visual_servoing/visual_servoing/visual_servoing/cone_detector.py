@@ -56,29 +56,29 @@ class ConeDetector(Node):
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
         # h, w = image_orig.shape[:2]
         # self.get_logger().info("%s" % (h*w,))
-        image2 = image_orig[250:350,:]
-        bounds = cd_color_segmentation(image)
-        bounds2 = cd_color_segmentation(image2)
+        image2 = image[195:245,:]
+        bounds = cd_color_segmentation(image2)
+        # bounds2 = cd_color_segmentation(image2)
         coord1, coord2 = bounds
-        coord11, coord21 = bounds2
+        # coord11, coord21 = bounds2
 
         x1, y1 = coord1
         x2, y2 = coord2
 
-        x11, y11 = coord11
-        x21, y21 = coord21
+        # x11, y11 = coord11
+        # x21, y21 = coord21
 
         self.get_logger().info("COORDS1 %s %s %s %s" % (x1, y1, x2, y2))
-        self.get_logger().info("COORDS2 %s %s %s %s" % (x11, y11, x21, y21))
+        # self.get_logger().info("COORDS2 %s %s %s %s" % (x11, y11, x21, y21))
 
         pixel_img_msg = ConeLocationPixel()
 
         pixel_img_msg.u = float((x1 + x2)//2)
-        pixel_img_msg.v = float(y2)
+        pixel_img_msg.v = float(y2 + 195)
 
         self.cone_pub.publish(pixel_img_msg)
 
-        cv2.rectangle(image, (x1,y1), (x2,y2), (255,0,0),2)
+        cv2.rectangle(image, (x1,y1+ 195), (x2,y2+ 195), (255,0,0),2)
 
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
         self.debug_pub.publish(debug_msg)
@@ -91,3 +91,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

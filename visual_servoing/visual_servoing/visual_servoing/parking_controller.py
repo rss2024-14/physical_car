@@ -27,7 +27,7 @@ class ParkingController(Node):
             self.relative_cone_callback, 1)
 
         self.velocity = 0.7
-        self.parking_distance = 0.75 # meters; try playing with this number!
+        self.parking_distance = 0.2 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
 
@@ -107,3 +107,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
