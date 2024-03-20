@@ -12,6 +12,8 @@ from sensor_msgs.msg import Image
 from ackermann_msgs.msg import AckermannDriveStamped
 from visualization_msgs.msg import Marker
 from vs_msgs.msg import ConeLocation, ConeLocationPixel
+from geometry_msgs.msg import Point
+from sensor_msgs.msg import LaserScan
 
 #The following collection of pixel locations and corresponding relative
 #ground plane locations are used to compute our homography matrix
@@ -21,10 +23,10 @@ from vs_msgs.msg import ConeLocation, ConeLocationPixel
 
 ######################################################
 ## DUMMY POINTS -- ENTER YOUR MEASUREMENTS HERE
-PTS_IMAGE_PLANE = [[-1, -1],
-                   [-1, -1],
-                   [-1, -1],
-                   [-1, -1]] # dummy points
+PTS_IMAGE_PLANE = [[476.0, 210.0],
+                   [231.0, 274.0],
+                   [308.0, 215.0],
+                   [575.0, 247.0]] # dummy points
 ######################################################
 
 # PTS_GROUND_PLANE units are in inches
@@ -32,10 +34,10 @@ PTS_IMAGE_PLANE = [[-1, -1],
 
 ######################################################
 ## DUMMY POINTS -- ENTER YOUR MEASUREMENTS HERE
-PTS_GROUND_PLANE = [[-1, -1],
-                    [-1, -1],
-                    [-1, -1],
-                    [-1, -1]] # dummy points
+PTS_GROUND_PLANE = [[31, -15.5],
+                    [17, 6.5],
+                    [30.5, 2.0],
+                    [20, -14.5]] # dummy points
 ######################################################
 
 METERS_PER_INCH = 0.0254
@@ -48,6 +50,12 @@ class HomographyTransformer(Node):
         self.cone_pub = self.create_publisher(ConeLocation, "/relative_cone", 10)
         self.marker_pub = self.create_publisher(Marker, "/cone_marker", 1)
         self.cone_px_sub = self.create_subscription(ConeLocationPixel, "/relative_cone_px", self.cone_detection_callback, 1)
+        self.mouse_sub = self.create_subscription(
+            Point,
+            "/zed/zed_node/rgb/image_rect_color_mouse_left",
+            #"/zed/zed_node/rgb/image_rect_color_mouse_left",
+            self.mouse_callback,
+            10)
 
         if not len(PTS_GROUND_PLANE) == len(PTS_IMAGE_PLANE):
             rclpy.logerr("ERROR: PTS_GROUND_PLANE and PTS_IMAGE_PLANE should be of same length")
@@ -65,6 +73,11 @@ class HomographyTransformer(Node):
         self.h, err = cv2.findHomography(np_pts_image, np_pts_ground)
 
         self.get_logger().info("Homography Transformer Initialized")
+
+    def mouse_callback(self, msg):
+        self.get_logger().info("MOUSE CALLBACK %s %s" % (msg.x, msg.y))
+        x, y = self.transformUvToXy(msg.x, msg.y)
+        self.draw_marker(x, y, "/base_link")
 
     def cone_detection_callback(self, msg):
         #Extract information from message
@@ -121,6 +134,9 @@ class HomographyTransformer(Node):
         marker.pose.orientation.w = 1.0
         marker.pose.position.x = cone_x
         marker.pose.position.y = cone_y
+
+        self.get_logger().info("DRAW MARKER %s %s" % (cone_x, cone_y))
+
         self.marker_pub.publish(marker)
 
 def main(args=None):
