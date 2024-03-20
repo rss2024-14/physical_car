@@ -56,14 +56,20 @@ class ConeDetector(Node):
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
         # h, w = image_orig.shape[:2]
         # self.get_logger().info("%s" % (h*w,))
-        # image = image_orig[250:350,:]
+        image2 = image_orig[250:350,:]
         bounds = cd_color_segmentation(image)
+        bounds2 = cd_color_segmentation(image2)
         coord1, coord2 = bounds
+        coord11, coord21 = bounds2
 
         x1, y1 = coord1
         x2, y2 = coord2
 
-        self.get_logger().info("COORDS %s %s %s %s" % (x1, y1, x2, y2))
+        x11, y11 = coord11
+        x21, y21 = coord21
+
+        self.get_logger().info("COORDS1 %s %s %s %s" % (x1, y1, x2, y2))
+        self.get_logger().info("COORDS2 %s %s %s %s" % (x11, y11, x21, y21))
 
         pixel_img_msg = ConeLocationPixel()
 
