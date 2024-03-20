@@ -54,15 +54,16 @@ class ConeDetector(Node):
         #################################
 
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
-
+        # h, w = image_orig.shape[:2]
+        # self.get_logger().info("%s" % (h*w,))
+        # image = image_orig[250:350,:]
         bounds = cd_color_segmentation(image)
         coord1, coord2 = bounds
 
-        
-
         x1, y1 = coord1
         x2, y2 = coord2
-        
+
+        self.get_logger().info("COORDS %s %s %s %s" % (x1, y1, x2, y2))
 
         pixel_img_msg = ConeLocationPixel()
 
@@ -71,10 +72,10 @@ class ConeDetector(Node):
 
         self.cone_pub.publish(pixel_img_msg)
 
-        # cv2.rectangle(image, (x1,y1), (x2,y2), (255,0,0),2)
+        cv2.rectangle(image, (x1,y1), (x2,y2), (255,0,0),2)
 
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
-        # self.debug_pub.publish(debug_msg)
+        self.debug_pub.publish(debug_msg)
 
 def main(args=None):
     rclpy.init(args=args)

@@ -16,17 +16,17 @@ class ParkingController(Node):
     def __init__(self):
         super().__init__("parking_controller")
 
-        #self.declare_parameter("drive_topic")
-        #DRIVE_TOPIC = self.get_parameter("drive_topic").value # set in launch file; different for simulator vs racecar
+        self.declare_parameter("drive_topic")
+        DRIVE_TOPIC = self.get_parameter("drive_topic").value # set in launch file; different for simulator vs racecar
 
-        #self.drive_pub = self.create_publisher(AckermannDriveStamped, DRIVE_TOPIC, 10)
-        self.drive_pub = self.create_publisher(AckermannDriveStamped, "/drive", 10)
+        self.drive_pub = self.create_publisher(AckermannDriveStamped, DRIVE_TOPIC, 10)
+        # self.drive_pub = self.create_publisher(AckermannDriveStamped, "/drive", 10)
         self.error_pub = self.create_publisher(ParkingError, "/parking_error", 10)
 
         self.create_subscription(ConeLocation, "/relative_cone", 
             self.relative_cone_callback, 1)
 
-        self.velocity = 1.0
+        self.velocity = 0.7
         self.parking_distance = 0.75 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
@@ -51,25 +51,27 @@ class ParkingController(Node):
         # If the cone is behind the car, back the car up until the cone is in front of the car
         # If the cone is too close to the car, back up the car up
         # If the cone is too far from the car, move towards the cone
-        if self.relative_x <= 0:
+        # if self.relative_x < 0:
+        #     drive_cmd.drive.speed = -1.0 * self.velocity
+        #     drive_cmd.drive.steering_angle = 0.0
+        self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
+
+        if self.relative_distance < (self.parking_distance - 0.15):
             drive_cmd.drive.speed = -1.0 * self.velocity
             drive_cmd.drive.steering_angle = 0.0
-        elif self.relative_distance < (self.parking_distance - 0.05):
-            drive_cmd.drive.speed = -1.0 * self.velocity
-            drive_cmd.drive.steering_angle = 0.0
-        elif self.relative_distance > (self.parking_distance + 0.05):
+        elif self.relative_distance > (self.parking_distance + 0.15):
             # If the cone is to the right of the car, the steering angle is negative
             # If the cont is to the left of the car, the steering angle is positive
             drive_cmd.drive.speed = self.velocity
             drive_cmd.drive.steering_angle = self.relative_angle
-        elif self.relative_distance <= (self.parking_distance + 0.05) and self.relative_distance >= (self.parking_distance - 0.05):
-            if self.relative_angle > 0.05:
+        elif self.relative_distance <= (self.parking_distance + 0.15) and self.relative_distance >= (self.parking_distance - 0.15):
+            if self.relative_angle > 0.15:
                 drive_cmd.drive.speed = -1.0 * self.velocity
                 drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
-            elif self.relative_angle < -0.05:
+            elif self.relative_angle < -0.15:
                 drive_cmd.drive.speed = -1.0 * self.velocity
                 drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
-            elif self.relative_angle <= 0.05 and self.relative_angle >= -0.05:
+            elif self.relative_angle <= 0.15 and self.relative_angle >= -0.15:
                 drive_cmd.drive.speed = 0.0
                 drive_cmd.drive.steering_angle = 0.0
 
