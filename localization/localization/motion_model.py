@@ -34,17 +34,15 @@ class MotionModel:
         yp = xk[1]
         tp = xk[2]
 
-        rot1 = np.arctan2(yp-y, xp-x) - t
+        rot1 = np.arctan2(yp-y, xp-x) - tp
         trans = np.sqrt( (x-xp)**2 + (y-yp)**2 )
-        rot2 = tp - t - rot1
 
         rot1_hat = rot1 - self.noise()
         trans_hat = trans - self.noise()
-        rot2_hat = rot2 - self.noise()
 
         x_prime = x + trans_hat*np.cos(t + rot1_hat)
         y_prime = y + trans_hat*np.sin(t + rot1_hat)
-        theta_prime = t + rot1_hat + rot2_hat
+        theta_prime = t + rot1_hat
 
         return [x_prime, y_prime, theta_prime]
 
