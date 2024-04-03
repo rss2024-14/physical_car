@@ -10,12 +10,10 @@ class MotionModel:
 
         self.prev_odom = [0, 0, 0]
 
-        ####################################
+        rng = np.random.default_rng()
+        self.noise = rng.normal()
 
-    def sample_normal_distribution(self, b):
-        x = np.random.uniform(low=-1, high=1, size=12)
-        x_sum = np.sum(x)
-        return (b/6.0) * x_sum
+        ####################################
     
     def update_pose(self, particle, odom_prime, odom):
         # Current particle position
@@ -33,19 +31,13 @@ class MotionModel:
         dy = odom[1]
         dtheta = odom[2]
 
-        # Alpha values
-        a1 = 0.74
-        a2 = 0.07
-        a3 = 0.07
-        a4 = 0.12
-
         rot1 = np.arctan2(dy_prime-dy, dx_prime-dx) - dtheta
         trans = np.sqrt((dx-dx_prime)**2 + (dy-dy_prime)**2)
         rot2 = dtheta_prime - dtheta - rot1
 
-        rot1_prime = rot1 - self.sample_normal_distribution(a1*rot1 + a2*trans)
-        trans_prime = trans - self.sample_normal_distribution(a3*trans + a4*(rot1+rot2))
-        rot2_prime = rot2 - self.sample_normal_distribution(a1*rot2 + a2*trans)
+        rot1_prime = rot1 + self.noise
+        trans_prime = trans + self.noise
+        rot2_prime = rot2 + self.noise
 
         x_prime = x + trans_prime*np.cos(theta + rot1_prime)
         y_prime = y + trans_prime*np.sin(theta + rot1_prime)
@@ -78,6 +70,6 @@ class MotionModel:
 
         self.prev_odom = odom
 
-        return new_pose
+        return np.array(new_pose)
 
         ####################################
