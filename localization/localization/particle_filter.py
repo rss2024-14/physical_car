@@ -84,19 +84,22 @@ class ParticleFilter(Node):
         Initialize particles
         """
         pass
-    
-    def laser_callback(self, scan):
-        """
-        Sensor model stuff: compute probs and resample
-        """
-        # Use lock
 
     def odom_callback():
         """
-        Whenever get odometry data, using motion model
+        Whenever we get odometry data, use the motion model to update the particle positions
         """
         pass
         # get x,y, theta
+    
+    def laser_callback(self, scan):
+        """
+        Whenever we get sensor data, use the sensor model to compute the particle probabilities. 
+        Then resample the particles based on these probabilities
+        """
+        # Use lock
+
+    
 
 
 
