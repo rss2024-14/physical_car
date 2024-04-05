@@ -3,9 +3,11 @@ from localization.motion_model import MotionModel
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from sensor_msgs.msg import LaserScan
 
 from rclpy.node import Node
 import rclpy
+import numpy as np
 
 assert rclpy
 
@@ -17,6 +19,8 @@ class ParticleFilter(Node):
 
         self.declare_parameter('particle_filter_frame', "default")
         self.particle_filter_frame = self.get_parameter('particle_filter_frame').get_parameter_value().string_value
+
+        # Add num_particles
 
         #  *Important Note #1:* It is critical for your particle
         #     filter to obtain the following topic names from the
@@ -74,6 +78,26 @@ class ParticleFilter(Node):
         #
         # Publish a transformation frame between the map
         # and the particle_filter_frame.
+
+    def pose_callback():
+        """
+        Initialize particles
+        """
+        pass
+    
+    def laser_callback(self, scan):
+        """
+        Sensor model stuff: compute probs and resample
+        """
+        # Use lock
+
+    def odom_callback():
+        """
+        Whenever get odometry data, using motion model
+        """
+        pass
+        # get x,y, theta
+
 
 
 def main(args=None):
