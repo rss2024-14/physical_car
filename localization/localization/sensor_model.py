@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from scan_simulator_2d import PyScanSimulator2D
 # Try to change to just `from scan_simulator_2d import PyScanSimulator2D` 
 # if any error re: scan_simulator_2d occurs
@@ -31,11 +32,11 @@ class SensorModel:
 
         ####################################
         # Adjust these parameters
-        self.alpha_hit = 0
-        self.alpha_short = 0
-        self.alpha_max = 0
-        self.alpha_rand = 0
-        self.sigma_hit = 0
+        self.alpha_hit = .74
+        self.alpha_short = .07
+        self.alpha_max = .07
+        self.alpha_rand = .12
+        self.sigma_hit = 8.0
 
         # Your sensor table will be a `table_width` x `table_width` np array:
         self.table_width = 201
@@ -87,7 +88,60 @@ class SensorModel:
             No return type. Directly modify `self.sensor_model_table`.
         """
 
-        raise NotImplementedError
+        ### Calculate all the phits, put them in the table, normalize across columns, then add the other p values
+        ### For each z
+        for row in range(0, self.table_width):
+
+            
+            ### For each d of table, calculate phit
+            for column in range(0, self.table_width):
+
+                ### Calculate phit
+
+                phit = 1.0 * 1.0/(math.sqrt(2.0 * math.pi * self.sigma_hit)) * math.exp(-1.0 * (row-column)/(2.0*self.sigma_hit**2.0))
+
+                self.sensor_model_table[row][column] = phit
+
+            ### Normalize columns to add up to 1
+
+            column_sum = sum(self.sensor_model_table[row])
+
+            self.sensor_model_table[row] = (self.sensor_model_table[row] / column_sum) * self.alpha_hit
+
+
+            ### For each d of table, add the remaining probability values
+            for column in range(0, self.table_width):
+
+                ### Calculate pshort
+
+                if column != 0:
+                    pshort = 2/column * (1-(row/column)) 
+                else:
+                    pshort = 0
+
+                ### Calculate pmax
+
+                if column == self.table_width-1:
+                    pmax = 1
+                else:
+                    pmax = 0
+
+                ### Calculate prand
+                    
+                prand = 1/(self.table_width-1)
+
+
+                p = self.alpha_short * pshort + self.alpha_max * pmax + self.alpha_rand * prand
+
+                self.sensor_model_table[row][column] += p
+        
+        column_sums = self.sensor_model_table.sum(axis=0)
+        self.sensor_model_table = self.sensor_model_table/column_sums
+        
+
+
+
+
 
     def evaluate(self, particles, observation):
         """
@@ -121,7 +175,16 @@ class SensorModel:
         # to perform ray tracing from all the particles.
         # This produces a matrix of size N x num_beams_per_particle 
 
-        scans = self.scan_sim.scan(particles)
+        # probabilities = []
+
+        # scans = self.scan_sim.scan(particles)
+
+        # for scan in scans:
+
+        #     p = 1
+
+        #     for d in scan:
+        #         p *= self.sensor_model_table[]
 
         ####################################
 
