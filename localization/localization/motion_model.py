@@ -8,42 +8,34 @@ class MotionModel:
         # Do any precomputation for the motion
         # model here.
 
-        self.prev_odom = [0, 0, 0]
-
         rng = np.random.default_rng()
         self.noise = rng.normal()
 
         ####################################
     
-    def update_pose(self, particle, odom_prime, odom):
-        # Current particle position
-        x = particle[0]
-        y = particle[1]
-        theta = particle[2]
+    def rot(self, angle):
+        cos_theta = np.cos(angle)
+        sin_theta = np.sin(angle)
         
-        # Current odom readings
-        dx_prime = odom_prime[0]
-        dy_prime = odom_prime[1]
-        dtheta_prime = odom_prime[2]
+        return np.array([[cos_theta, -sin_theta, 0],
+                         [sin_theta,  cos_theta, 0 ],
+                         [0, 0, 1]])
 
-        # Previous odom readings
-        dx = odom[0]
-        dy = odom[1]
-        dtheta = odom[2]
 
-        rot1 = np.arctan2(dy_prime-dy, dx_prime-dx) - dtheta
-        trans = np.sqrt((dx-dx_prime)**2 + (dy-dy_prime)**2)
-        rot2 = dtheta_prime - dtheta - rot1
+    def update_pose(self, particle, odom):
+        # Current particle position
+        [x, y, t] = particle
+        
+        xk = particle + self.rot(t) @ np.array(odom).T
 
-        rot1_prime = rot1 + self.noise
-        trans_prime = trans + self.noise
-        rot2_prime = rot2 + self.noise
+        [xp, yp, tp] = xk
 
-        x_prime = x + trans_prime*np.cos(theta + rot1_prime)
-        y_prime = y + trans_prime*np.sin(theta + rot1_prime)
-        theta_prime = theta + rot1_prime + rot2_prime
+        # Adding noise
+        #xp += self.noise
+        #yp += self.noise
+        #tp += self.noise
 
-        return [x_prime, y_prime, theta_prime]
+        return [xp, yp, tp]
 
     def evaluate(self, particles, odom):
         """
@@ -66,9 +58,7 @@ class MotionModel:
 
         ####################################
 
-        new_pose = [self.update_pose(particle, odom, self.prev_odom) for particle in particles]
-
-        self.prev_odom = odom
+        new_pose = [self.update_pose(particle, odom) for particle in particles]
 
         return np.array(new_pose)
 
