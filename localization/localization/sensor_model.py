@@ -91,36 +91,35 @@ class SensorModel:
         ### Calculate all the phits, put them in the table, normalize across columns, then add the other p values
         ### For each z
         for row in range(self.table_width):
-
             ### For each d of table, calculate phit
             for column in range(self.table_width):
 
                 ### Calculate phit
-                
+
                 phit = 1.0 * 1.0/(math.sqrt(2.0 * math.pi * self.sigma_hit**2)) * math.exp(-(row-column)**2/(2.0*self.sigma_hit**2.0))
 
                 self.sensor_model_table[row][column] = phit
 
             ### Normalize columns to add up to 1
 
-            column_sum = sum(self.sensor_model_table[row])
+            column_sum = np.sum(self.sensor_model_table[row])
 
             self.sensor_model_table[row] = (self.sensor_model_table[row] / column_sum) * self.alpha_hit
 
 
             ### For each d of table, add the remaining probability values
-            for column in range(0, self.table_width):
+            for column in range(self.table_width):
 
                 ### Calculate pshort
 
                 if column != 0 and row <= column:
-                    pshort = 2/column * (1-(row/column)) 
+                    pshort = 2/(column) * (1-(row/column)) 
                 else:
                     pshort = 0
 
                 ### Calculate pmax
 
-                if column == self.table_width-1:
+                if row == self.table_width-1:
                     pmax = 1
                 else:
                     pmax = 0
@@ -131,6 +130,7 @@ class SensorModel:
 
 
                 p = self.alpha_short * pshort + self.alpha_max * pmax + self.alpha_rand * prand
+                # p = pshort + pmax + prand 
 
                 self.sensor_model_table[row][column] += p
         
