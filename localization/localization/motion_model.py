@@ -8,6 +8,8 @@ class MotionModel:
         # Do any precomputation for the motion
         # model here.
 
+        self.deterministic = False
+
         rng = np.random.default_rng()
         self.noise = rng.normal()
 
@@ -30,10 +32,10 @@ class MotionModel:
 
         [xp, yp, tp] = xk
 
-        # Adding noise
-        #xp += self.noise
-        #yp += self.noise
-        #tp += self.noise
+        if not self.deterministic:
+            xp += self.noise
+            yp += self.noise
+            tp += self.noise
 
         return [xp, yp, tp]
 
