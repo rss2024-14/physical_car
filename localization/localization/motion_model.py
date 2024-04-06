@@ -8,45 +8,34 @@ class MotionModel:
         # Do any precomputation for the motion
         # model here.
 
-        self.prev_odom = [0, 0, 0]
-
         rng = np.random.default_rng()
-        self.noise = rng.normal() #alphas 
+        self.noise = rng.normal()
 
         ####################################
     
-    def rot(angle):
+    def rot(self, angle):
         cos_theta = np.cos(angle)
         sin_theta = np.sin(angle)
         
         return np.array([[cos_theta, -sin_theta, 0],
-                         [sin_theta,  cos_theta, 0 ]
+                         [sin_theta,  cos_theta, 0 ],
                          [0, 0, 1]])
 
 
-    def update_pose(self, particle, odom_prime, odom):
+    def update_pose(self, particle, odom):
         # Current particle position
         [x, y, t] = particle
-        xk = particle + self.rot(-t) @ odom.T
         
-        # Current odom readings
-        xp = xk[0] 
-        yp = xk[1]
-        tp = xk[2]
+        xk = particle + self.rot(t) @ np.array(odom).T
 
-        rot1 = np.arctan2(yp-y, xp-x) - t
-        trans = np.sqrt( (x-xp)**2 + (y-yp)**2 )
-        rot2 = tp - t - rot1
+        [xp, yp, tp] = xk
 
-        rot1_hat = rot1 - self.noise()
-        trans_hat = trans - self.noise()
-        rot2_hat = rot2 - self.noise()
+        # Adding noise
+        #xp += self.noise
+        #yp += self.noise
+        #tp += self.noise
 
-        x_prime = x + trans_hat*np.cos(t + rot1_hat)
-        y_prime = y + trans_hat*np.sin(t + rot1_hat)
-        theta_prime = t + rot1_hat + rot2_hat
-
-        return [x_prime, y_prime, theta_prime]
+        return [xp, yp, tp]
 
     def evaluate(self, particles, odom):
         """
@@ -69,9 +58,7 @@ class MotionModel:
 
         ####################################
 
-        new_pose = [self.update_pose(particle, odom, self.prev_odom) for particle in particles]
-
-        self.prev_odom = odom
+        new_pose = [self.update_pose(particle, odom) for particle in particles]
 
         return np.array(new_pose)
 
