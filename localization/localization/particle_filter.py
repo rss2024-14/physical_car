@@ -8,6 +8,7 @@ from sensor_msgs.msg import LaserScan
 from rclpy.node import Node
 import rclpy
 import numpy as np
+import threading
 
 assert rclpy
 
@@ -17,10 +18,13 @@ class ParticleFilter(Node):
     def __init__(self):
         super().__init__("particle_filter")
 
+        #To edit depending on how many particles we think we can handle
+        self.declare_parameter('num_particles', "default")
+        self.num_particles = self.get_parameter('num_particles').get_parameter_value().integer_value
+
         self.declare_parameter('particle_filter_frame', "default")
         self.particle_filter_frame = self.get_parameter('particle_filter_frame').get_parameter_value().string_value
 
-        # Add num_particles
 
         #  *Important Note #1:* It is critical for your particle
         #     filter to obtain the following topic names from the
@@ -67,11 +71,12 @@ class ParticleFilter(Node):
         self.motion_model = MotionModel(self)
         self.sensor_model = SensorModel(self)
 
+        self.particles = []
+        self.lock = threading.Lock()
+
         self.get_logger().info("=============+READY+=============")
 
-        # Implement the MCL algorithm
-        # using the sensor model and the motion model
-        #
+
         # Make sure you include some way to initialize
         # your particles, ideally with some sort
         # of interactive interface in rviz
@@ -79,11 +84,24 @@ class ParticleFilter(Node):
         # Publish a transformation frame between the map
         # and the particle_filter_frame.
 
-    def pose_callback():
+    def pose_callback(self, pose_data):
         """
         Initialize particles
+
+        ("Ideally with some sort of interactive interface in rviz")
         """
-        pass
+        # Converting pose_data to desired float variables
+        x = pose_data.pose.pose.position.x
+        y = pose_data.pose.pose.position.y
+        theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
+
+        # Create particles based on this pose
+            # Need to sample to only have as many as we want based on num_particles
+        x_vals = 0
+        y_vals = 0
+        theta_vals = 0
+
+        self.particles = []
 
     def odom_callback():
         """
@@ -98,6 +116,10 @@ class ParticleFilter(Node):
         Then resample the particles based on these probabilities
         """
         # Use lock
+
+    ## Other helper functions we might need:
+        # Converting particle back to pose
+        # 
 
     
 
