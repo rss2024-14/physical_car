@@ -15,7 +15,7 @@ class MotionModel:
 
         ####################################
     
-    def rot(angle):
+    def rot(self, angle):
         cos_theta = np.cos(angle)
         sin_theta = np.sin(angle)
         
