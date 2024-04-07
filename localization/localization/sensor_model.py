@@ -90,15 +90,14 @@ class SensorModel:
 
         ### Calculate all the phits, put them in the table, normalize across columns, then add the other p values
         ### For each z
-        for row in range(0, self.table_width):
+        for row in range(self.table_width):
 
-            
             ### For each d of table, calculate phit
-            for column in range(0, self.table_width):
+            for column in range(self.table_width):
 
                 ### Calculate phit
-
-                phit = 1.0 * 1.0/(math.sqrt(2.0 * math.pi * self.sigma_hit)) * math.exp(-1.0 * (row-column)/(2.0*self.sigma_hit**2.0))
+                
+                phit = 1.0 * 1.0/(math.sqrt(2.0 * math.pi * self.sigma_hit**2)) * math.exp(-(row-column)**2/(2.0*self.sigma_hit**2.0))
 
                 self.sensor_model_table[row][column] = phit
 
@@ -114,7 +113,7 @@ class SensorModel:
 
                 ### Calculate pshort
 
-                if column != 0:
+                if column != 0 and row <= column:
                     pshort = 2/column * (1-(row/column)) 
                 else:
                     pshort = 0
@@ -135,8 +134,8 @@ class SensorModel:
 
                 self.sensor_model_table[row][column] += p
         
-        column_sums = self.sensor_model_table.sum(axis=0)
-        self.sensor_model_table = self.sensor_model_table/column_sums
+        column_sums = np.sum(self.sensor_model_table, axis=0)
+        self.sensor_model_table /= column_sums
         
 
 
