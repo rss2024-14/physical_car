@@ -10,8 +10,20 @@ class MotionModel:
 
         self.deterministic = deterministic
 
+        # Random Number Generator
         rng = np.random.default_rng()
+
+        # Normal Distribution
         self.noise = rng.normal()
+
+        # Uniform Distribution
+        #self.noise = rng.uniform()
+
+        # Triangular Distribution
+        # self.noise = rng.triangular()
+
+        # Poisson Distribution
+        # self.noise = rng.poisson()
 
         ####################################
     
