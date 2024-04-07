@@ -52,7 +52,7 @@ class ParticleFilter(Node):
         self.sensor_model = SensorModel(self)
 
         self.particles = []
-        self.recieved_particles = False
+        self.received_particles = False
         self.weighted_avg = [0, 0, 0]
         self.lock = threading.Lock()
 
@@ -71,22 +71,22 @@ class ParticleFilter(Node):
         theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Create particles based on this pose
-            # Need to create to only have as many as we want based on num_particles
-        x_vals = 0
-        y_vals = 0
-        theta_vals = 0
+        # Need to create to only have as many as we want based on num_particles
+        x_vals = np.random.normal(loc=x, scale=1.0, size=self.num_particles)
+        y_vals = np.random.normal(loc=y, scale=1.0, size=self.num_particles)
+        theta_vals = np.random.normal(loc=theta, scale=1.0, size=self.num_particles)
 
-        self.particles = [] #TODO
+        self.particles = np.concatenate(x_vals.reshape(-1,1), y_vals.reshape(-1,1), theta_vals.reshape(-1,1), axis=1)
 
         # First time initializing, so can now set "prev" as the starting pose and ready to perform other ops
         self.prev_pose = np.array([x, y, theta])
-        self.recieved_particles = True
+        self.received_particles = True
 
     def odom_callback(self, odom_data):
         """
         Whenever we get odometry data, use the motion model to update the particle positions
         """
-        if self.recieved_particles:
+        if self.received_particles:
             with self.lock:
                 # Get new pose
                 x = odom_data.pose.pose.position.x
@@ -96,11 +96,12 @@ class ParticleFilter(Node):
                 current_pose = np.array([x,y,theta])
 
                 # Actually calling motion model with particles and new deltaX
-                delta_x = current_pose - self.prev_pose
+                delta_x = self.rot(self.prev_pose[2]) @ (current_pose - self.prev_pose).T
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
-                self.previous_pose = current_pose
+                self.prev_pose = current_pose
 
                 # Update the average pose
+                # TODO: Does this actually take the average? 
                 self.weighted_avg = self.average_motion_model.evaluate(self.weighted_avg, delta_x)
 
                 #Because particles have been updated,
@@ -112,7 +113,7 @@ class ParticleFilter(Node):
         Whenever we get sensor data, use the sensor model to compute the particle probabilities. 
         Then resample the particles based on these probabilities
         """
-        if self.recieved_particles:
+        if self.received_particles:
             with self.lock:
                 ranges = scan_data.ranges #Will want to reduce this because of number
                 probs = self.sensor_model.evaluate(self.particles, ranges)
@@ -155,7 +156,13 @@ class ParticleFilter(Node):
 
         self.odom_pub.publish(msg)
 
-
+    def rot(self, angle):
+        cos_theta = np.cos(angle)
+        sin_theta = np.sin(angle)
+        
+        return np.array([[cos_theta, -sin_theta, 0],
+                        [sin_theta,  cos_theta, 0 ],
+                        [0, 0, 1]])
 
 def main(args=None):
     rclpy.init(args=args)
