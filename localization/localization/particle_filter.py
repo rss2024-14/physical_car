@@ -115,7 +115,8 @@ class ParticleFilter(Node):
         """
         if self.received_particles:
             with self.lock:
-                ranges = scan_data.ranges #Will want to reduce this because of number
+                ranges = scan_data.ranges
+                ranges = ranges[ : : len(ranges) // self.num_particles]
                 probs = self.sensor_model.evaluate(self.particles, ranges)
 
                 # Calculate average
@@ -135,7 +136,6 @@ class ParticleFilter(Node):
                 self.publish_average_particle_pose()
 
 
-    # Uhhh maybe another name but idk I can't think
     def publish_average_particle_pose(self):
         """
         Anytime particles are updated via motion or sensor, publishing the average
