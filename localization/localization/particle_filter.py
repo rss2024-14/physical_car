@@ -71,7 +71,6 @@ class ParticleFilter(Node):
         theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Create particles based on this pose
-        # Need to create to only have as many as we want based on num_particles
         x_vals = np.random.normal(loc=x, scale=1.0, size=self.num_particles)
         y_vals = np.random.normal(loc=y, scale=1.0, size=self.num_particles)
         theta_vals = np.random.normal(loc=theta, scale=1.0, size=self.num_particles)
