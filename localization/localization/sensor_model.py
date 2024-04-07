@@ -16,6 +16,11 @@ np.set_printoptions(threshold=sys.maxsize)
 class SensorModel:
 
     def __init__(self, node):
+
+        print("STARTING INITIALIZATION")
+        node.get_logger().info("STARTING INITIALIZATION")
+        self.logger = node.get_logger()
+
         node.declare_parameter('map_topic', "default")
         node.declare_parameter('num_beams_per_particle', "default")
         node.declare_parameter('scan_theta_discretization', "default")
@@ -32,10 +37,15 @@ class SensorModel:
 
         ####################################
         # Adjust these parameters
-        self.alpha_hit = .74
-        self.alpha_short = .07
-        self.alpha_max = .07
-        self.alpha_rand = .12
+        self.alpha_hit = 0 #.74
+        self.alpha_short = 0 #.07
+        self.alpha_max = 0 #.07
+        self.alpha_rand = 0 #.12
+
+        # self.alpha_hit = 0 #.74
+        # self.alpha_short = 0 #.07
+        # self.alpha_max = 0 #.07
+        # self.alpha_rand = 0 #.12
         self.sigma_hit = 8.0
 
         # Your sensor table will be a `table_width` x `table_width` np array:
@@ -46,9 +56,10 @@ class SensorModel:
         node.get_logger().info("%s" % self.num_beams_per_particle)
         node.get_logger().info("%s" % self.scan_theta_discretization)
         node.get_logger().info("%s" % self.scan_field_of_view)
+        node.get_logger().info(f"ALPHA SHORT: {self.alpha_short}")
 
         # Precompute the sensor model table
-        self.sensor_model_table = np.empty((self.table_width, self.table_width))
+        self.sensor_model_table = np.zeros((self.table_width, self.table_width))
         self.precompute_sensor_model()
 
         # Create a simulated laser scan
@@ -88,60 +99,66 @@ class SensorModel:
             No return type. Directly modify `self.sensor_model_table`.
         """
 
+        self.sensor_model_table = np.zeros((self.table_width, self.table_width))
+        # self.alpha_hit = 1 #.74
+        # self.alpha_short = 0 #.07
+        # self.alpha_max = 0 #.07
+        # self.alpha_rand = 0 #.12
+
         ### Calculate all the phits, put them in the table, normalize across columns, then add the other p values
         ### For each z
         for row in range(self.table_width):
-
             ### For each d of table, calculate phit
             for column in range(self.table_width):
 
-                ### Calculate phit
-                
-                phit = 1.0 * 1.0/(math.sqrt(2.0 * math.pi * self.sigma_hit**2)) * math.exp(-(row-column)**2/(2.0*self.sigma_hit**2.0))
+                ## Calculate phit
+
+                phit = 1.0/(math.sqrt(2.0 * math.pi * self.sigma_hit**2)) * np.exp(-(row-column)**2/(2*self.sigma_hit**2))
 
                 self.sensor_model_table[row][column] = phit
 
             ### Normalize columns to add up to 1
 
-            column_sum = sum(self.sensor_model_table[row])
+        # column_sum = np.sum(self.sensor_model_table[row])
+        # self.sensor_model_table[row] = (self.sensor_model_table[row] / column_sum) * self.alpha_hit 
 
-            self.sensor_model_table[row] = (self.sensor_model_table[row] / column_sum) * self.alpha_hit
+        column_sums = np.sum(self.sensor_model_table, axis=0)
+        self.sensor_model_table /= column_sums 
+        self.sensor_model_table *= self.alpha_hit 
+        
+        for row in range(self.table_width):
+            # ### For each d of table, add the remaining probability values
+            for column in range(self.table_width):
 
+                ## Calculate pshort
 
-            ### For each d of table, add the remaining probability values
-            for column in range(0, self.table_width):
-
-                ### Calculate pshort
-
-                if column != 0 and row <= column:
-                    pshort = 2/column * (1-(row/column)) 
+                # if (row == 0 and column == 0):
+                #     pshort = 0
+                if (column != 0 and row <= column):
+                    pshort = 2/(column) * (1-(row/column)) 
                 else:
                     pshort = 0
 
                 ### Calculate pmax
 
-                if column == self.table_width-1:
+                if row == self.table_width-1:
                     pmax = 1
                 else:
                     pmax = 0
 
-                ### Calculate prand
+                ## Calculate prand
                     
                 prand = 1/(self.table_width-1)
-
+                
 
                 p = self.alpha_short * pshort + self.alpha_max * pmax + self.alpha_rand * prand
 
+                # self.logger.info("%s |||| %s" % (self.sensor_model_table[row][column], self.sensor_model_table[row][column] + p))
                 self.sensor_model_table[row][column] += p
         
         column_sums = np.sum(self.sensor_model_table, axis=0)
         self.sensor_model_table /= column_sums
         
-
-
-
-
-
     def evaluate(self, particles, observation):
         """
         Evaluate how likely each particle is given
@@ -174,16 +191,27 @@ class SensorModel:
         # to perform ray tracing from all the particles.
         # This produces a matrix of size N x num_beams_per_particle 
 
-        # probabilities = []
+        probabilities = [0] * len(particles)
 
-        # scans = self.scan_sim.scan(particles)
+        scans = self.scan_sim.scan(particles)
 
-        # for scan in scans:
+        obs = 0
+        for scan in scans:
+            p = 1
+            for d in scan:
+                p *= self.sensor_model_table[int(observation[obs] / (self.resolution * self.lidar_scale_to_map_scale))][int(d / (self.resolution * self.lidar_scale_to_map_scale))]
+            
+            probabilities[obs] = p
 
-        #     p = 1
+            obs += 1
+        
+        #self.logger.info("CHECK PROBS")
+        #self.logger.info("%s" % (probabilities))
 
-        #     for d in scan:
-        #         p *= self.sensor_model_table[]
+        #column_sums = np.sum(probabilities, axis=0)
+        #probabilities /= column_sums
+
+        return np.power(probabilities, 1/2.2)
 
         ####################################
 
