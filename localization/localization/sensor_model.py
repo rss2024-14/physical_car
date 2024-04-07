@@ -191,14 +191,27 @@ class SensorModel:
         # to perform ray tracing from all the particles.
         # This produces a matrix of size N x num_beams_per_particle 
 
-        probabilities = []
+        probabilities = [0] * len(particles)
 
         scans = self.scan_sim.scan(particles)
 
+        obs = 0
         for scan in scans:
             p = 1
             for d in scan:
-                p *= self.sensor_model_table[]
+                p *= self.sensor_model_table[int(observation[obs] / (self.resolution * self.lidar_scale_to_map_scale))][int(d / (self.resolution * self.lidar_scale_to_map_scale))]
+            
+            probabilities[obs] = p
+
+            obs += 1
+        
+        #self.logger.info("CHECK PROBS")
+        #self.logger.info("%s" % (probabilities))
+
+        #column_sums = np.sum(probabilities, axis=0)
+        #probabilities /= column_sums
+
+        return np.power(probabilities, 1/2.2)
 
         ####################################
 
