@@ -2,13 +2,13 @@ import numpy as np
 
 class MotionModel:
 
-    def __init__(self, node):
+    def __init__(self, node, deterministic = False):
         ####################################
         # TODO
         # Do any precomputation for the motion
         # model here.
 
-        self.deterministic = False
+        self.deterministic = deterministic
 
         rng = np.random.default_rng()
         self.noise = rng.normal()
