@@ -36,18 +36,32 @@ class MotionModel:
                          [0, 0, 1]])
 
 
-    def update_pose(self, particles, odom):
+    def update_pose(self, particle, odom):
         # Current particle position
-        angles = particles[:,2]
-        ct = np.cos(angles)
-        st = np.sin(angles)
-                
-        motion = np.array(
-            [ct * odom[0] - st * odom[1],
-             st * odom[0] + ct * odom[1],
-             np.full(np.shape(ct), odom[2]) ])
+
+        [x, y, t] = particle
         
-        return particles + motion + np.random.normal(scale=0.15, size=np.shape(motion)) if self.deterministic else 0
+        xk = particle + self.rot(t) @ np.array(odom).T
+
+        [xp, yp, tp] = xk
+
+        if not self.deterministic:
+            xp += np.random.normal(scale=.15)#self.noise
+            yp += np.random.normal(scale=.15)#self.noise
+            tp += np.random.normal(scale=.15)#self.noise
+
+        return [xp, yp, tp]
+
+        # angles = particles[:,2]
+        # ct = np.cos(angles)
+        # st = np.sin(angles)
+                
+        # motion = np.array(
+        #     [ct * odom[0] - st * odom[1],
+        #      st * odom[0] + ct * odom[1],
+        #      np.full(np.shape(ct), odom[2]) ])
+        
+        # return particles + motion + np.random.normal(scale=0.15, size=np.shape(motion)) if self.deterministic else 0
 
     def evaluate(self, particles, odom):
         """
@@ -70,8 +84,8 @@ class MotionModel:
 
         ####################################
 
-        return self.update_pose(particles, odom)
-        # new_pose = [self.update_pose(particle, odom) for particle in particles]
-        # return np.array(new_pose)
+        # return self.update_pose(particles, odom)
+        new_pose = [self.update_pose(particle, odom) for particle in particles]
+        return np.array(new_pose)
 
         ####################################

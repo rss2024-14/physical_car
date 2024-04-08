@@ -165,13 +165,15 @@ class SensorModel:
         
         positions = self.scan_sim.scan(particles)
         
+        observation = np.asarray(observation)
+        
         observation /= (self.resolution * self.lidar_scale_to_map_scale)
         observation = np.clip(observation, 0, self.table_width - 1).astype(int)
 
         scans = positions / (self.resolution * self.lidar_scale_to_map_scale)
         scans = np.clip(scans, 0, self.table_width - 1).astype(int)
         
-        probs = np.prod(self.sensor_model_table[observation, scans], axis=1)   
+        probs = np.prod(self.sensor_model_table[observation.reshape(-1,1), scans], axis=1)   
 
         return probs / np.sum(probs)
 
