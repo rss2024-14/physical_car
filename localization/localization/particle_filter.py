@@ -2,7 +2,7 @@ from localization.sensor_model import SensorModel
 from localization.motion_model import MotionModel
 
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseWithCovarianceStamped, Pose
+from geometry_msgs.msg import PoseWithCovarianceStamped, Pose, PoseArray
 from sensor_msgs.msg import LaserScan
 
 from rclpy.node import Node
@@ -45,6 +45,7 @@ class ParticleFilter(Node):
 
 
         self.odom_pub = self.create_publisher(Odometry, "/pf/pose/odom", 1)
+        self.all_pose_pub = self.create_publisher(PoseArray, "/particles", 1)
 
         # Initialize the models
         self.motion_model = MotionModel(self)
@@ -155,18 +156,36 @@ class ParticleFilter(Node):
         msg = Odometry()
         msg.header.frame_id = "/map"
 
-        pose = Pose()
-        pose.position.x = self.weighted_avg[0]
-        pose.position.y = self.weighted_avg[1]
-        pose.position.z = 0.0
-        pose.orientation.x = 0.0
-        pose.orientation.y = 0.0
-        pose.orientation.z = np.sin(1/2 * self.weighted_avg[2])
-        pose.orientation.w = np.cos(1/2 * self.weighted_avg[2])
-
-        msg.pose.pose = pose
+        msg.pose.pose = self.particles_to_poses([self.weighted_avg])[0]
 
         self.odom_pub.publish(msg)
+
+
+    def publish_all_particles(self):
+        msg = PoseArray()
+        msg.header.frame_id = "/map"
+
+        poses = self.particles_to_poses(self.particles)
+        msg.poses = poses
+
+        self.all_pose_pub.publish(msg)
+
+    
+    def particles_to_poses(self, particles):
+        poses = []
+        for particle in particles:
+            pose = Pose()
+            pose.position.x = particle[0]
+            pose.position.y = particle[1]
+            pose.position.z = 0.0
+            pose.orientation.x = 0.0
+            pose.orientation.y = 0.0
+            pose.orientation.z = np.sin(1/2 * particle[2])
+            pose.orientation.w = np.cos(1/2 * particle[2])
+
+            poses.append(pose)
+
+        return poses
 
 
     def rot(self, angle):
