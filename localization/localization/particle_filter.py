@@ -98,10 +98,10 @@ class ParticleFilter(Node):
                 self.get_logger().info("ODOM CALLBACK")
 
                 # Get new pose
-                xdot = odom_data.twist.twist.linear.x
-                ydot = odom_data.twist.twist.linear.y
+                xdot = -1*odom_data.twist.twist.linear.x
+                ydot = -1*odom_data.twist.twist.linear.y
                 # theta = 2*np.arccos(odom_data.twist.twist.angular.z)
-                thetadot = odom_data.twist.twist.angular.z
+                thetadot = -1*odom_data.twist.twist.angular.z
 
                 v = np.array([xdot,ydot,thetadot])
                 self.get_logger().info(str(v))
