@@ -18,7 +18,6 @@ class ParticleFilter(Node):
     def __init__(self):
         super().__init__("particle_filter")
 
-        #Can edit depending on how many particles we think we can handle
         self.declare_parameter('num_particles', "default")
         self.num_particles = self.get_parameter('num_particles').get_parameter_value().integer_value
 
@@ -53,8 +52,10 @@ class ParticleFilter(Node):
         self.sensor_model = SensorModel(self)
 
         self.particles = []
+        self.probs = [1] * self.num_particles
         self.received_particles = False
         self.weighted_avg = [0, 0, 0]
+        self.prev_time = self.get_clock().now()
         self.lock = threading.Lock()
 
         self.get_logger().info("=============+READY+=============")
@@ -74,9 +75,9 @@ class ParticleFilter(Node):
         theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Create particles based on this pose
-        x_vals = np.random.normal(loc=x, scale=1.0, size=self.num_particles)
-        y_vals = np.random.normal(loc=y, scale=1.0, size=self.num_particles)
-        theta_vals = np.random.normal(loc=theta, scale=1.0, size=self.num_particles)
+        x_vals = np.random.normal(loc=x, scale=1, size=self.num_particles)
+        y_vals = np.random.normal(loc=y, scale=1, size=self.num_particles)
+        theta_vals = np.random.normal(loc=theta, scale=1, size=self.num_particles)
 
         self.particles = np.concatenate((x_vals.reshape(-1,1), y_vals.reshape(-1,1), theta_vals.reshape(-1,1)), axis=1)
 
@@ -91,25 +92,27 @@ class ParticleFilter(Node):
 
         if self.received_particles:
             with self.lock:
-                self.get_logger().info("ODOM CALLBACK RUN")
+                self.get_logger().info("ODOM CALLBACK")
+
                 # Get new pose
-                x = odom_data.pose.pose.position.x
-                y = odom_data.pose.pose.position.y
-                theta = 2*np.arccos(odom_data.pose.pose.orientation.w)
+                x = odom_data.twist.twist.linear.x
+                y = odom_data.twist.twist.linear.y
+                theta = 2*np.arccos(odom_data.twist.twist.angular.z)
 
                 current_pose = np.array([x,y,theta])
+                current_time = self.get_clock().now()
+
+                dt = float( (current_time - self.prev_time).nanoseconds / 1e9 )
 
                 # Actually calling motion model with particles and new deltaX
-                delta_x = self.rot(self.prev_pose[2]) @ (current_pose - self.prev_pose).T
+                delta_x = (self.rot(self.prev_pose[2]) @ (current_pose - self.prev_pose).T)*dt
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
-                self.prev_pose = current_pose
 
-                # Update the average pose
-                self.weighted_avg = self.average_motion_model.evaluate(np.array([self.weighted_avg]), delta_x)[0]
+                self.prev_pose = current_pose
+                self.prev_time = current_time
 
                 #Because particles have been updated,
-                self.publish_average_particle_pose()
-
+                self.publish_pose_info()
 
     def laser_callback(self, scan_data):
         """
@@ -119,56 +122,51 @@ class ParticleFilter(Node):
 
         if self.received_particles:
             with self.lock:
-                self.get_logger().info("LASER CALLBACK RUN")
+                self.get_logger().info("LASER CALLBACK")
 
                 ranges = scan_data.ranges
                 if len(ranges) > 100:
                     ranges = ranges[ : : len(ranges) // 100]
-                # self.get_logger().info("RANGES-----%s" % (ranges,))
-                probs = self.sensor_model.evaluate(self.particles, ranges)
 
-
-                
-
-                # Calculate average
-                x_mean, y_mean = np.average(self.particles[:,:2], axis=0, weights=probs) #Grabbing x,y of each particle and avg
-                theta_mean = np.arctan2(
-                    np.sum(probs * np.sin(self.particles[:,2])), 
-                    np.sum(probs * np.cos(self.particles[:,2]))
-                    ) #Circular mean eq
-                
-                # self.get_logger().info("PARTICLES %s" % (self.particles,))
-                
-                self.weighted_avg = [x_mean, y_mean, theta_mean]
+                self.probs = self.sensor_model.evaluate(self.particles, ranges)
 
                 # Resampling the Particles
-                indices = np.random.choice(len(self.particles), size=self.num_particles, p=probs, replace=True)
+                indices = np.random.choice(len(self.particles), size=self.num_particles, p=self.probs, replace=True)
                 self.particles = self.particles[indices]
 
                 #Because particles have been updated,
-                self.publish_average_particle_pose()
+                self.publish_pose_info()
 
 
-    def publish_average_particle_pose(self):
+    def publish_pose_info(self):
         """
-        Anytime particles are updated via motion or sensor, publishing the average
+        Anytime particles are updated via motion or sensor, publishing particles and the calculated avg
         """
-        msg = Odometry()
-        msg.header.frame_id = "/map"
 
-        msg.pose.pose = self.particles_to_poses([self.weighted_avg])[0]
+        #Publishing all particles
+        poses_msg = PoseArray()
+        poses_msg.header.frame_id = "/map"
 
-        self.odom_pub.publish(msg)
+        poses_msg.poses = self.particles_to_poses(self.particles)
 
+        self.all_pose_pub.publish(poses_msg)
 
-    def publish_all_particles(self):
-        msg = PoseArray()
-        msg.header.frame_id = "/map"
+        # Calculate average
+        x_mean, y_mean = np.average(self.particles[:,:2], axis=0, weights=self.probs) #Grabbing x,y of each particle and avg
+        theta_mean = np.arctan2(
+            np.average(np.sin(self.particles[:,2]), weights=self.probs), 
+            np.average(np.cos(self.particles[:,2]), weights=self.probs)
+            ) #Circular mean eq
+                        
+        self.weighted_avg = [x_mean, y_mean, theta_mean]
+        
+        #Publishing average particle pose
+        odom_msg = Odometry()
+        odom_msg.header.frame_id = "/map"
 
-        poses = self.particles_to_poses(self.particles)
-        msg.poses = poses
+        odom_msg.pose.pose = self.particles_to_poses([self.weighted_avg])[0]
 
-        self.all_pose_pub.publish(msg)
+        self.odom_pub.publish(odom_msg)
 
     
     def particles_to_poses(self, particles):

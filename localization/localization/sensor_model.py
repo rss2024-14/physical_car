@@ -56,7 +56,6 @@ class SensorModel:
         node.get_logger().info("%s" % self.num_beams_per_particle)
         node.get_logger().info("%s" % self.scan_theta_discretization)
         node.get_logger().info("%s" % self.scan_field_of_view)
-        node.get_logger().info(f"ALPHA SHORT: {self.alpha_short}")
 
         self.resolution = 0.05
 
@@ -160,8 +159,8 @@ class SensorModel:
                 self.sensor_model_table[row][column] += p
         
         # column_sums = np.sum(self.sensor_model_table, axis=0)
-        self.sensor_model_table /= self.sensor_model_table.sum(axis=0, keepdims=True)
         # self.logger.info("SENSOR TABLE %s" % self.sensor_model_table)
+        self.sensor_model_table /= self.sensor_model_table.sum(axis=0, keepdims=True)
         
     def evaluate(self, particles, observation):
         """
@@ -195,18 +194,14 @@ class SensorModel:
         # to perform ray tracing from all the particles.
         # This produces a matrix of size N x num_beams_per_particle 
 
-        # self.logger.info("particles: %s" % (particles,))
+        #self.logger.info("%s" % (particles,))
         probabilities = [0] * len(particles)
-        # self.logger.info("2")
         scans = self.scan_sim.scan(particles)
-        # self.logger.info("3")
         obs = 0
         
         for scan in scans:
-            # self.logger.info("4")
             p = 1
             for (i,d) in enumerate(scan):
-                # self.logger.info("5")
                 zk_scaled = np.clip(int( observation[i] / (self.resolution * self.lidar_scale_to_map_scale)), 0, self.table_width-1)
                 d_scaled = np.clip(int( d / (self.resolution * self.lidar_scale_to_map_scale)), 0, self.table_width-1)
                 p *= self.sensor_model_table[zk_scaled][d_scaled]
@@ -214,7 +209,6 @@ class SensorModel:
             probabilities[obs] = p
 
             obs += 1
-            # self.logger.info("6")
         
         #self.logger.info("CHECK PROBS")
         #self.logger.info("%s" % (probabilities))
