@@ -123,8 +123,8 @@ class ParticleFilter(Node):
             with self.lock:
 
                 ranges = scan_data.ranges
-                if len(ranges) > 100:
-                    ranges = ranges[ : : len(ranges) // 100]
+                if len(ranges) > 200:
+                    ranges = ranges[ : : len(ranges) // 200]
 
                 self.probs = self.sensor_model.evaluate(self.particles, ranges)
 
