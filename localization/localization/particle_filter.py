@@ -10,7 +10,7 @@ import rclpy
 import numpy as np
 import threading
 import time
-
+import tf_transformations
 assert rclpy
 
 
@@ -73,12 +73,13 @@ class ParticleFilter(Node):
         # Converting pose_data to desired float variables
         x = pose_data.pose.pose.position.x
         y = pose_data.pose.pose.position.y
-        theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
+        *_, theta = tf_transformations.euler_from_quaternion([pose_data.pose.pose.orientation.x, pose_data.pose.pose.orientation.y, pose_data.pose.pose.orientation.z, pose_data.pose.pose.orientation.w])
+        # theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Create particles based on this pose
-        x_vals = np.random.normal(loc=x, scale=.01, size=self.num_particles)
-        y_vals = np.random.normal(loc=y, scale=.01, size=self.num_particles)
-        theta_vals = np.random.normal(loc=theta, scale=.01, size=self.num_particles)
+        x_vals = np.random.normal(loc=x, scale=.1, size=self.num_particles)
+        y_vals = np.random.normal(loc=y, scale=.1, size=self.num_particles)
+        theta_vals = np.random.normal(loc=theta, scale=.1, size=self.num_particles)
 
         self.particles = np.concatenate((x_vals.reshape(-1,1), y_vals.reshape(-1,1), theta_vals.reshape(-1,1)), axis=1)
 
@@ -97,20 +98,24 @@ class ParticleFilter(Node):
                 self.get_logger().info("ODOM CALLBACK")
 
                 # Get new pose
-                x = odom_data.twist.twist.linear.x
-                y = odom_data.twist.twist.linear.y
-                theta = 2*np.arccos(odom_data.twist.twist.angular.z)
+                xdot = odom_data.twist.twist.linear.x
+                ydot = odom_data.twist.twist.linear.y
+                # theta = 2*np.arccos(odom_data.twist.twist.angular.z)
+                thetadot = odom_data.twist.twist.angular.z
 
-                current_pose = np.array([x,y,theta])
+                v = np.array([xdot,ydot,thetadot])
+                self.get_logger().info(str(v))
                 current_time = time.time()
 
                 dt = current_time - self.prev_time
 
                 # Actually calling motion model with particles and new deltaX
-                delta_x = ( self.rot(self.prev_pose[2]) @ (current_pose - self.prev_pose).T ) * dt
-                self.particles = self.motion_model.evaluate(self.particles, delta_x) #+ np.random.normal(scale=0.001, size=(len(self.particles), 3))
+                delta_x = v * dt
+                # self.get_logger().info(str(delta_x))
 
-                self.prev_pose = current_pose
+                # prev = self.particles[:]
+                self.particles = self.motion_model.evaluate(self.particles, delta_x)
+                # self.prev_pose = current_pose
                 self.prev_time = current_time
 
                 #Because particles have been updated,
@@ -150,6 +155,8 @@ class ParticleFilter(Node):
         poses_msg.header.frame_id = "/map"
 
         poses_msg.poses = self.particles_to_poses(self.particles)
+
+        self.get_logger().info(str(poses_msg.poses[0]))
 
         self.all_pose_pub.publish(poses_msg)
 
