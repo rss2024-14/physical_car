@@ -9,6 +9,7 @@ from rclpy.node import Node
 import rclpy
 import numpy as np
 import threading
+import time
 
 assert rclpy
 
@@ -55,7 +56,7 @@ class ParticleFilter(Node):
         self.probs = [1] * self.num_particles
         self.received_particles = False
         self.weighted_avg = [0, 0, 0]
-        self.prev_time = self.get_clock().now()
+        self.prev_time = time.time()
         self.lock = threading.Lock()
 
         self.get_logger().info("=============+READY+=============")
@@ -75,15 +76,16 @@ class ParticleFilter(Node):
         theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Create particles based on this pose
-        x_vals = np.random.normal(loc=x, scale=1, size=self.num_particles)
-        y_vals = np.random.normal(loc=y, scale=1, size=self.num_particles)
-        theta_vals = np.random.normal(loc=theta, scale=1, size=self.num_particles)
+        x_vals = np.random.normal(loc=x, scale=.01, size=self.num_particles)
+        y_vals = np.random.normal(loc=y, scale=.01, size=self.num_particles)
+        theta_vals = np.random.normal(loc=theta, scale=.01, size=self.num_particles)
 
         self.particles = np.concatenate((x_vals.reshape(-1,1), y_vals.reshape(-1,1), theta_vals.reshape(-1,1)), axis=1)
 
         # First time initializing, so can now set "prev" as the starting pose and ready to perform other ops
         self.prev_pose = np.array([x, y, theta])
         self.received_particles = True
+
 
     def odom_callback(self, odom_data):
         """
@@ -100,13 +102,13 @@ class ParticleFilter(Node):
                 theta = 2*np.arccos(odom_data.twist.twist.angular.z)
 
                 current_pose = np.array([x,y,theta])
-                current_time = self.get_clock().now()
+                current_time = time.time()
 
-                dt = float( (current_time - self.prev_time).nanoseconds / 1e9 )
+                dt = current_time - self.prev_time
 
                 # Actually calling motion model with particles and new deltaX
-                delta_x = (self.rot(self.prev_pose[2]) @ (current_pose - self.prev_pose).T)*dt
-                self.particles = self.motion_model.evaluate(self.particles, delta_x)
+                delta_x = ( self.rot(self.prev_pose[2]) @ (current_pose - self.prev_pose).T ) * dt
+                self.particles = self.motion_model.evaluate(self.particles, delta_x) #+ np.random.normal(scale=0.001, size=(len(self.particles), 3))
 
                 self.prev_pose = current_pose
                 self.prev_time = current_time

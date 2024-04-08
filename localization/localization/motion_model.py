@@ -46,9 +46,9 @@ class MotionModel:
         [xp, yp, tp] = xk
 
         if not self.deterministic:
-            xp += np.random.normal(loc=0, scale=.1)#self.noise
-            yp += np.random.normal(loc=0, scale=.1)#self.noise
-            tp += np.random.normal(loc=0, scale=.1)#self.noise
+            xp += np.random.normal(scale=.2)#self.noise
+            yp += np.random.normal(scale=.2)#self.noise
+            tp += np.random.normal(scale=.2)#self.noise
 
         return [xp, yp, tp]
 
