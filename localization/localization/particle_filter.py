@@ -68,13 +68,11 @@ class ParticleFilter(Node):
 
         ("Ideally with some sort of interactive interface in rviz")
         """
-        self.get_logger().info("POSE CALLBACK RUN")
 
         # Converting pose_data to desired float variables
         x = pose_data.pose.pose.position.x
         y = pose_data.pose.pose.position.y
         *_, theta = tf_transformations.euler_from_quaternion([pose_data.pose.pose.orientation.x, pose_data.pose.pose.orientation.y, pose_data.pose.pose.orientation.z, pose_data.pose.pose.orientation.w])
-        # theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Create particles based on this pose
         x_vals = np.random.normal(loc=x, scale=.1, size=self.num_particles)
@@ -95,27 +93,21 @@ class ParticleFilter(Node):
 
         if self.received_particles:
             with self.lock:
-                self.get_logger().info("ODOM CALLBACK")
 
                 # Get new pose
-                xdot = -1*odom_data.twist.twist.linear.x
-                ydot = -1*odom_data.twist.twist.linear.y
-                # theta = 2*np.arccos(odom_data.twist.twist.angular.z)
-                thetadot = -1*odom_data.twist.twist.angular.z
+                xdot = odom_data.twist.twist.linear.x
+                ydot = odom_data.twist.twist.linear.y
+                thetadot = odom_data.twist.twist.angular.z
 
-                v = np.array([xdot,ydot,thetadot])
-                self.get_logger().info(str(v))
+                v = -1*np.array([xdot,ydot,thetadot])
                 current_time = time.time()
 
                 dt = current_time - self.prev_time
 
                 # Actually calling motion model with particles and new deltaX
                 delta_x = v * dt
-                # self.get_logger().info(str(delta_x))
 
-                # prev = self.particles[:]
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
-                # self.prev_pose = current_pose
                 self.prev_time = current_time
 
                 #Because particles have been updated,
@@ -129,7 +121,6 @@ class ParticleFilter(Node):
 
         if self.received_particles:
             with self.lock:
-                self.get_logger().info("LASER CALLBACK")
 
                 ranges = scan_data.ranges
                 if len(ranges) > 100:
@@ -156,8 +147,6 @@ class ParticleFilter(Node):
 
         poses_msg.poses = self.particles_to_poses(self.particles)
 
-        self.get_logger().info(str(poses_msg.poses[0]))
-
         self.all_pose_pub.publish(poses_msg)
 
         # Calculate average
@@ -180,15 +169,20 @@ class ParticleFilter(Node):
     
     def particles_to_poses(self, particles):
         poses = []
-        for particle in particles:
+
+        # Vectorized computation of sine and cosine components for z and w orientations
+        zs = np.sin(particles[:, 2] / 2)
+        ws = np.cos(particles[:, 2] / 2)
+
+        for i in range(len(particles)):
             pose = Pose()
-            pose.position.x = particle[0]
-            pose.position.y = particle[1]
+            pose.position.x = particles[i, 0]
+            pose.position.y = particles[i, 1]
             pose.position.z = 0.0
             pose.orientation.x = 0.0
             pose.orientation.y = 0.0
-            pose.orientation.z = np.sin(1/2 * particle[2])
-            pose.orientation.w = np.cos(1/2 * particle[2])
+            pose.orientation.z = zs[i]
+            pose.orientation.w = ws[i]
 
             poses.append(pose)
 
