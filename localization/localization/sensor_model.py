@@ -51,12 +51,6 @@ class SensorModel:
         # Your sensor table will be a `table_width` x `table_width` np array:
         self.table_width = 201
         ####################################
-
-        node.get_logger().info("%s" % self.map_topic)
-        node.get_logger().info("%s" % self.num_beams_per_particle)
-        node.get_logger().info("%s" % self.scan_theta_discretization)
-        node.get_logger().info("%s" % self.scan_field_of_view)
-
         self.resolution = 0.05
 
         # Precompute the sensor model table
@@ -155,11 +149,9 @@ class SensorModel:
 
                 p = self.alpha_short * pshort + self.alpha_max * pmax + self.alpha_rand * prand
 
-                # self.logger.info("%s |||| %s" % (self.sensor_model_table[row][column], self.sensor_model_table[row][column] + p))
                 self.sensor_model_table[row][column] += p
         
         # column_sums = np.sum(self.sensor_model_table, axis=0)
-        # self.logger.info("SENSOR TABLE %s" % self.sensor_model_table)
         self.sensor_model_table /= self.sensor_model_table.sum(axis=0, keepdims=True)
         
     def evaluate(self, particles, observation):
@@ -194,7 +186,6 @@ class SensorModel:
         # to perform ray tracing from all the particles.
         # This produces a matrix of size N x num_beams_per_particle 
 
-        #self.logger.info("%s" % (particles,))
         probabilities = [0] * len(particles)
         scans = self.scan_sim.scan(particles)
         obs = 0
@@ -209,9 +200,6 @@ class SensorModel:
             probabilities[obs] = p
 
             obs += 1
-        
-        #self.logger.info("CHECK PROBS")
-        #self.logger.info("%s" % (probabilities))
 
         column_sums = np.sum(probabilities, axis=0)
         probabilities /= column_sums

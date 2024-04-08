@@ -169,20 +169,16 @@ class ParticleFilter(Node):
     
     def particles_to_poses(self, particles):
         poses = []
-
-        # Vectorized computation of sine and cosine components for z and w orientations
-        zs = np.sin(particles[:, 2] / 2)
-        ws = np.cos(particles[:, 2] / 2)
-
-        for i in range(len(particles)):
+    
+        for particle in particles:
             pose = Pose()
-            pose.position.x = particles[i, 0]
-            pose.position.y = particles[i, 1]
+            pose.position.x = particle[0]
+            pose.position.y = particle[1]
             pose.position.z = 0.0
             pose.orientation.x = 0.0
             pose.orientation.y = 0.0
-            pose.orientation.z = zs[i]
-            pose.orientation.w = ws[i]
+            pose.orientation.z = np.sin(particle[2] / 2)
+            pose.orientation.w = np.cos(particle[2] / 2)
 
             poses.append(pose)
 
