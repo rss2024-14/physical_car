@@ -37,10 +37,10 @@ class SensorModel:
 
         ####################################
         # Adjust these parameters
-        self.alpha_hit = 0 #.74
-        self.alpha_short = 0 #.07
-        self.alpha_max = 0 #.07
-        self.alpha_rand = 0 #.12
+        self.alpha_hit = .74
+        self.alpha_short = .07
+        self.alpha_max = .07
+        self.alpha_rand = .12
 
         # self.alpha_hit = 0 #.74
         # self.alpha_short = 0 #.07
@@ -58,8 +58,10 @@ class SensorModel:
         node.get_logger().info("%s" % self.scan_field_of_view)
         node.get_logger().info(f"ALPHA SHORT: {self.alpha_short}")
 
+        self.resolution = 0.05
+
         # Precompute the sensor model table
-        self.sensor_model_table = np.zeros((self.table_width, self.table_width))
+        self.sensor_model_table = np.empty((self.table_width, self.table_width))
         self.precompute_sensor_model()
 
         # Create a simulated laser scan
@@ -78,6 +80,7 @@ class SensorModel:
             self.map_topic,
             self.map_callback,
             1)
+        
 
     def precompute_sensor_model(self):
         """
@@ -99,7 +102,7 @@ class SensorModel:
             No return type. Directly modify `self.sensor_model_table`.
         """
 
-        self.sensor_model_table = np.zeros((self.table_width, self.table_width))
+        # self.sensor_model_table = np.zeros((self.table_width, self.table_width))
         # self.alpha_hit = 1 #.74
         # self.alpha_short = 0 #.07
         # self.alpha_max = 0 #.07
@@ -132,9 +135,9 @@ class SensorModel:
 
                 ## Calculate pshort
 
-                # if (row == 0 and column == 0):
-                #     pshort = 0
-                if (column != 0 and row <= column):
+                if (column == 0):
+                    pshort = 0
+                elif (column != 0 and row <= column):
                     pshort = 2/(column) * (1-(row/column)) 
                 else:
                     pshort = 0
@@ -156,8 +159,9 @@ class SensorModel:
                 # self.logger.info("%s |||| %s" % (self.sensor_model_table[row][column], self.sensor_model_table[row][column] + p))
                 self.sensor_model_table[row][column] += p
         
-        column_sums = np.sum(self.sensor_model_table, axis=0)
-        self.sensor_model_table /= column_sums
+        # column_sums = np.sum(self.sensor_model_table, axis=0)
+        self.sensor_model_table /= self.sensor_model_table.sum(axis=0, keepdims=True)
+        # self.logger.info("SENSOR TABLE %s" % self.sensor_model_table)
         
     def evaluate(self, particles, observation):
         """
@@ -191,27 +195,35 @@ class SensorModel:
         # to perform ray tracing from all the particles.
         # This produces a matrix of size N x num_beams_per_particle 
 
+        # self.logger.info("particles: %s" % (particles,))
         probabilities = [0] * len(particles)
-
+        # self.logger.info("2")
         scans = self.scan_sim.scan(particles)
-
+        # self.logger.info("3")
         obs = 0
+        
         for scan in scans:
+            # self.logger.info("4")
             p = 1
-            for d in scan:
-                p *= self.sensor_model_table[int(observation[obs] / (self.resolution * self.lidar_scale_to_map_scale))][int(d / (self.resolution * self.lidar_scale_to_map_scale))]
+            for (i,d) in enumerate(scan):
+                # self.logger.info("5")
+                zk_scaled = np.clip(int( observation[i] / (self.resolution * self.lidar_scale_to_map_scale)), 0, self.table_width-1)
+                d_scaled = np.clip(int( d / (self.resolution * self.lidar_scale_to_map_scale)), 0, self.table_width-1)
+                p *= self.sensor_model_table[zk_scaled][d_scaled]
             
             probabilities[obs] = p
 
             obs += 1
+            # self.logger.info("6")
         
         #self.logger.info("CHECK PROBS")
         #self.logger.info("%s" % (probabilities))
 
-        #column_sums = np.sum(probabilities, axis=0)
-        #probabilities /= column_sums
+        column_sums = np.sum(probabilities, axis=0)
+        probabilities /= column_sums
 
-        return np.power(probabilities, 1/2.2)
+        return probabilities
+        # return np.power(probabilities, 1/2.2)
 
         ####################################
 

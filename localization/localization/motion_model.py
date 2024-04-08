@@ -7,7 +7,7 @@ class MotionModel:
         # TODO
         # Do any precomputation for the motion
         # model here.
-
+        self.logger = node.get_logger()
         self.deterministic = deterministic
 
         rng = np.random.default_rng()
@@ -26,6 +26,7 @@ class MotionModel:
 
     def update_pose(self, particle, odom):
         # Current particle position
+        
         [x, y, t] = particle
         
         xk = particle + self.rot(t) @ np.array(odom).T

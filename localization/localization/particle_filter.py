@@ -65,6 +65,8 @@ class ParticleFilter(Node):
 
         ("Ideally with some sort of interactive interface in rviz")
         """
+        self.get_logger().info("POSE CALLBACK RUN")
+
         # Converting pose_data to desired float variables
         x = pose_data.pose.pose.position.x
         y = pose_data.pose.pose.position.y
@@ -76,7 +78,7 @@ class ParticleFilter(Node):
         y_vals = np.random.normal(loc=y, scale=1.0, size=self.num_particles)
         theta_vals = np.random.normal(loc=theta, scale=1.0, size=self.num_particles)
 
-        self.particles = np.concatenate(x_vals.reshape(-1,1), y_vals.reshape(-1,1), theta_vals.reshape(-1,1), axis=1)
+        self.particles = np.concatenate((x_vals.reshape(-1,1), y_vals.reshape(-1,1), theta_vals.reshape(-1,1)), axis=1)
 
         # First time initializing, so can now set "prev" as the starting pose and ready to perform other ops
         self.prev_pose = np.array([x, y, theta])
@@ -86,8 +88,10 @@ class ParticleFilter(Node):
         """
         Whenever we get odometry data, use the motion model to update the particle positions
         """
+
         if self.received_particles:
             with self.lock:
+                self.get_logger().info("ODOM CALLBACK RUN")
                 # Get new pose
                 x = odom_data.pose.pose.position.x
                 y = odom_data.pose.pose.position.y
@@ -101,8 +105,7 @@ class ParticleFilter(Node):
                 self.prev_pose = current_pose
 
                 # Update the average pose
-                # TODO: Does this actually take the average? 
-                self.weighted_avg = self.average_motion_model.evaluate(self.weighted_avg, delta_x)
+                self.weighted_avg = self.average_motion_model.evaluate(np.array([self.weighted_avg]), delta_x)[0]
 
                 #Because particles have been updated,
                 self.publish_average_particle_pose()
@@ -113,20 +116,28 @@ class ParticleFilter(Node):
         Whenever we get sensor data, use the sensor model to compute the particle probabilities. 
         Then resample the particles based on these probabilities
         """
+
         if self.received_particles:
             with self.lock:
+                self.get_logger().info("LASER CALLBACK RUN")
+
                 ranges = scan_data.ranges
-                ranges = ranges[ : : len(ranges) // self.num_particles]
+                if len(ranges) > 100:
+                    ranges = ranges[ : : len(ranges) // 100]
+                # self.get_logger().info("RANGES-----%s" % (ranges,))
                 probs = self.sensor_model.evaluate(self.particles, ranges)
+
+
+                # self.get_logger().info("%s" % (probs,))
 
                 # Calculate average
                 x_mean, y_mean = np.average(self.particles[:,:2], axis=0, weights=probs) #Grabbing x,y of each particle and avg
                 theta_mean = np.arctan2(
-                    np.sum(probs * np.sin(self.particles[:,3])), 
-                    np.sum(probs * np.cos(self.particles[:,3]))
+                    np.sum(probs * np.sin(self.particles[:,2])), 
+                    np.sum(probs * np.cos(self.particles[:,2]))
                     ) #Circular mean eq
                 
-                self.weighted_avg = np.array([x_mean, y_mean, theta_mean])
+                self.weighted_avg = [x_mean, y_mean, theta_mean]
 
                 # Resampling the Particles
                 indices = np.random.choice(len(self.particles), size=self.num_particles, p=probs, replace=True)
@@ -155,6 +166,7 @@ class ParticleFilter(Node):
         msg.pose.pose = pose
 
         self.odom_pub.publish(msg)
+
 
     def rot(self, angle):
         cos_theta = np.cos(angle)
