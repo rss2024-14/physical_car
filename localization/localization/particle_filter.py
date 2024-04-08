@@ -127,7 +127,7 @@ class ParticleFilter(Node):
                 probs = self.sensor_model.evaluate(self.particles, ranges)
 
 
-                # self.get_logger().info("%s" % (probs,))
+                
 
                 # Calculate average
                 x_mean, y_mean = np.average(self.particles[:,:2], axis=0, weights=probs) #Grabbing x,y of each particle and avg
@@ -135,6 +135,8 @@ class ParticleFilter(Node):
                     np.sum(probs * np.sin(self.particles[:,2])), 
                     np.sum(probs * np.cos(self.particles[:,2]))
                     ) #Circular mean eq
+                
+                # self.get_logger().info("PARTICLES %s" % (self.particles,))
                 
                 self.weighted_avg = [x_mean, y_mean, theta_mean]
 
