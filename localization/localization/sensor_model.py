@@ -42,10 +42,6 @@ class SensorModel:
         self.alpha_max = .07
         self.alpha_rand = .12
 
-        # self.alpha_hit = 0 #.74
-        # self.alpha_short = 0 #.07
-        # self.alpha_max = 0 #.07
-        # self.alpha_rand = 0 #.12
         self.sigma_hit = 8.0
 
         # Your sensor table will be a `table_width` x `table_width` np array:
@@ -95,12 +91,6 @@ class SensorModel:
             No return type. Directly modify `self.sensor_model_table`.
         """
 
-        # self.sensor_model_table = np.zeros((self.table_width, self.table_width))
-        # self.alpha_hit = 1 #.74
-        # self.alpha_short = 0 #.07
-        # self.alpha_max = 0 #.07
-        # self.alpha_rand = 0 #.12
-
         ### Calculate all the phits, put them in the table, normalize across columns, then add the other p values
         ### For each z
         for row in range(self.table_width):
@@ -115,8 +105,6 @@ class SensorModel:
 
             ### Normalize columns to add up to 1
 
-        # column_sum = np.sum(self.sensor_model_table[row])
-        # self.sensor_model_table[row] = (self.sensor_model_table[row] / column_sum) * self.alpha_hit 
 
         column_sums = np.sum(self.sensor_model_table, axis=0)
         self.sensor_model_table /= column_sums 
@@ -127,7 +115,6 @@ class SensorModel:
             for column in range(self.table_width):
 
                 ## Calculate pshort
-
                 if (column == 0):
                     pshort = 0
                 elif (column != 0 and row <= column):
@@ -136,28 +123,26 @@ class SensorModel:
                     pshort = 0
 
                 ### Calculate pmax
-
                 if row == self.table_width-1:
                     pmax = 1
                 else:
                     pmax = 0
 
                 ## Calculate prand
-                    
                 prand = 1/(self.table_width-1)
-                
 
                 p = self.alpha_short * pshort + self.alpha_max * pmax + self.alpha_rand * prand
 
                 self.sensor_model_table[row][column] += p
         
-        # column_sums = np.sum(self.sensor_model_table, axis=0)
         self.sensor_model_table /= self.sensor_model_table.sum(axis=0, keepdims=True)
         
     def evaluate(self, particles, observation):
         """
         Evaluate how likely each particle is given
         the observed scan.
+        Perform ray tracing from all the particles.
+        PRoduces a matrix of size N x num_beams_per_particle
 
         args:
             particles: An Nx3 matrix of the form:
@@ -177,37 +162,18 @@ class SensorModel:
 
         if not self.map_set:
             return
-
-        ####################################
-        # TODO
-        # Evaluate the sensor model here!
-        #
-        # You will probably want to use this function
-        # to perform ray tracing from all the particles.
-        # This produces a matrix of size N x num_beams_per_particle 
-
-        probabilities = [0] * len(particles)
-        scans = self.scan_sim.scan(particles)
-        obs = 0
         
-        for scan in scans:
-            p = 1
-            for (i,d) in enumerate(scan):
-                zk_scaled = np.clip(int( observation[i] / (self.resolution * self.lidar_scale_to_map_scale)), 0, self.table_width-1)
-                d_scaled = np.clip(int( d / (self.resolution * self.lidar_scale_to_map_scale)), 0, self.table_width-1)
-                p *= self.sensor_model_table[zk_scaled][d_scaled]
-            
-            probabilities[obs] = p
+        positions = self.scan_sim.scan(particles)
+        
+        observation /= (self.resolution * self.lidar_scale_to_map_scale)
+        observation = np.clip(observation, 0, self.table_width - 1).astype(int)
 
-            obs += 1
+        scans = positions / (self.resolution * self.lidar_scale_to_map_scale)
+        scans = np.clip(scans, 0, self.table_width - 1).astype(int)
+        
+        probs = np.prod(self.sensor_model_table[observation, scans], axis=1)   
 
-        column_sums = np.sum(probabilities, axis=0)
-        probabilities /= column_sums
-
-        return probabilities
-        # return np.power(probabilities, 1/2.2)
-
-        ####################################
+        return probs / np.sum(probs)
 
     def map_callback(self, map_msg):
         # Convert the map to a numpy array
