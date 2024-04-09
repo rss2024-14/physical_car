@@ -4,6 +4,7 @@ from localization.motion_model import MotionModel
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped, Pose, PoseArray
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Float32
 
 from rclpy.node import Node
 import rclpy
@@ -47,6 +48,15 @@ class ParticleFilter(Node):
         self.odom_pub = self.create_publisher(Odometry, "/pf/pose/odom", 1)
         self.all_pose_pub = self.create_publisher(PoseArray, "/particles", 1)
 
+        # Error publishers
+        self.x_error_pub = self.create_publisher(Float32, "/error/x", 1)
+        self.y_error_pub = self.create_publisher(Float32, "/error/y", 1)
+        self.theta_error_pub = self.create_publisher(Float32, "/error/theta", 1)
+
+        # Initial variables and models for actual pose update
+        self.actual_pose = None
+        self.actual_motion = MotionModel(self, deterministic=True)
+
         # Initialize the models
         self.motion_model = MotionModel(self)
         self.average_motion_model = MotionModel(self, deterministic = True)
@@ -74,6 +84,9 @@ class ParticleFilter(Node):
         y = pose_data.pose.pose.position.y
         *_, theta = tf_transformations.euler_from_quaternion([pose_data.pose.pose.orientation.x, pose_data.pose.pose.orientation.y, pose_data.pose.pose.orientation.z, pose_data.pose.pose.orientation.w])
 
+        # Initial actual pose is at selected point
+        self.actual_pose = [x, y, theta]
+
         # Create particles based on this pose
         x_vals = np.random.normal(loc=x, scale=.1, size=self.num_particles)
         y_vals = np.random.normal(loc=y, scale=.1, size=self.num_particles)
@@ -84,6 +97,18 @@ class ParticleFilter(Node):
         # First time initializing, so can now set "prev" as the starting pose and ready to perform other ops
         self.prev_pose = np.array([x, y, theta])
         self.received_particles = True
+        
+        # Publishing error, which is zero initially
+        x_error = Float32()
+        y_error = Float32()
+        theta_error = Float32()
+
+        x_error.data, y_error.data, theta_error.data = [0.0, 0.0, 0.0]
+
+        self.x_error_pub.publish(x_error)
+        self.y_error_pub.publish(y_error)
+        self.theta_error_pub.publish(theta_error)
+
 
 
     def odom_callback(self, odom_data):
@@ -109,9 +134,12 @@ class ParticleFilter(Node):
 
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
                 self.prev_time = current_time
+                
+                # Updating actual pose with odom reading without noise
+                self.actual_pose = self.actual_motion.update_pose(self.actual_pose, delta_x)
 
                 #Because particles have been updated,
-                self.publish_pose_info()
+                self.publish_pose_info(odom=True)
 
     def laser_callback(self, scan_data):
         """
@@ -136,7 +164,7 @@ class ParticleFilter(Node):
                 self.publish_pose_info()
 
 
-    def publish_pose_info(self):
+    def publish_pose_info(self, odom=False):
         """
         Anytime particles are updated via motion or sensor, publishing particles and the calculated avg
         """
@@ -165,6 +193,24 @@ class ParticleFilter(Node):
         odom_msg.pose.pose = self.particles_to_poses([self.weighted_avg])[0]
 
         self.odom_pub.publish(odom_msg)
+
+        # Publishing starting pose for both actual and estimated
+        if odom:
+            x_error = Float32()
+            y_error = Float32()
+            theta_error = Float32()
+
+            x = odom_msg.pose.pose.position.x
+            y = odom_msg.pose.pose.position.y
+            *_, theta = tf_transformations.euler_from_quaternion([odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y, odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w])
+            estimated_pose = [x, y, theta]
+            x_error.data = np.abs(self.actual_pose[0]-estimated_pose[0])
+            y_error.data = np.abs(self.actual_pose[1]-estimated_pose[1])
+            theta_error.data = np.abs(self.actual_pose[2]-estimated_pose[2])
+
+            self.x_error_pub.publish(x_error)
+            self.y_error_pub.publish(y_error)
+            self.theta_error_pub.publish(theta_error)
 
     
     def particles_to_poses(self, particles):
