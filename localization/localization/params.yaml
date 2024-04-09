@@ -1,12 +1,12 @@
 particle_filter:
   ros__parameters:
-    num_particles: 200 # 100 CAR
+    num_particles: 100 # 100 CAR
 
     # The number of lidar beams emitted from
     # each particle. This doesn't need to be
     # equal to the actual number (>1000)
     # so long as you downsample properly
-    num_beams_per_particle: 100 # 99 CAR
+    num_beams_per_particle: 99 # 99 CAR
 
     # The field of view centered around theta=0
     scan_field_of_view: 4.71 # radians
@@ -20,10 +20,10 @@ particle_filter:
     # The names of topics to listen and publish to
     map_topic: "/map"
     scan_topic: "/scan"
-    odom_topic: "/odom" # /vesc/odom CAR
+    odom_topic: "/vesc/odom" # /vesc/odom CAR
 
     # The frame you should publish your transform to
-    particle_filter_frame: "/base_link_pf" # "/base_link" CAR
+    particle_filter_frame: "/base_link" # "/base_link" CAR
 
     # Deterministic flag; set to true to remove all added noise
     deterministic: false
