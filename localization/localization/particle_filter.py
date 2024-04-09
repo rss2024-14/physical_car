@@ -211,7 +211,11 @@ class ParticleFilter(Node):
             y_error = Float32()
             theta_error = Float32()
 
-            x_error.data, y_error.data, y_error.data = np.abs(self.actual_pose-odom_msg.pose.pose)
+            x = odom_msg.pose.pose.position.x
+            y = odom_msg.pose.pose.position.y
+            *_, theta = tf_transformations.euler_from_quaternion([odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y, odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w])
+            estimated_pose = [x, y, theta]
+            x_error.data, y_error.data, y_error.data = np.abs(self.actual_pose-estimated_pose)
 
             self.x_error_pub.publish(x_error)
             self.y_error_pub.publish(y_error)
