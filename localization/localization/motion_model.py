@@ -27,9 +27,9 @@ class MotionModel:
 
         ####################################
     
-    def rot(self, angle):
-        cos_theta = np.cos(angle)
-        sin_theta = np.sin(angle)
+    def rot(self, angles):
+        cos_theta = np.cos(angles)
+        sin_theta = np.sin(angles)
         
         return np.array([[cos_theta, -sin_theta, 0],
                          [sin_theta,  cos_theta, 0 ],
@@ -38,7 +38,7 @@ class MotionModel:
 
     def update_pose(self, particle, odom):
         # Current particle position
-        
+
         [x, y, t] = particle
         
         xk = particle + self.rot(t) @ np.array(odom).T
@@ -51,6 +51,17 @@ class MotionModel:
             tp += np.random.normal(scale=.15)#self.noise
 
         return [xp, yp, tp]
+
+        # angles = particles[:,2]
+        # ct = np.cos(angles)
+        # st = np.sin(angles)
+                
+        # motion = np.array(
+        #     [ct * odom[0] - st * odom[1],
+        #      st * odom[0] + ct * odom[1],
+        #      np.full(np.shape(ct), odom[2]) ])
+        
+        # return particles + motion + np.random.normal(scale=0.15, size=np.shape(motion)) if self.deterministic else 0
 
     def evaluate(self, particles, odom):
         """
@@ -73,8 +84,8 @@ class MotionModel:
 
         ####################################
 
+        # return self.update_pose(particles, odom)
         new_pose = [self.update_pose(particle, odom) for particle in particles]
-
         return np.array(new_pose)
 
         ####################################

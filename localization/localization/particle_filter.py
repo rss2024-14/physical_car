@@ -78,13 +78,11 @@ class ParticleFilter(Node):
 
         ("Ideally with some sort of interactive interface in rviz")
         """
-        self.get_logger().info("POSE CALLBACK RUN")
 
         # Converting pose_data to desired float variables
         x = pose_data.pose.pose.position.x
         y = pose_data.pose.pose.position.y
         *_, theta = tf_transformations.euler_from_quaternion([pose_data.pose.pose.orientation.x, pose_data.pose.pose.orientation.y, pose_data.pose.pose.orientation.z, pose_data.pose.pose.orientation.w])
-        # theta = 2*np.arccos(pose_data.pose.pose.orientation.w) #Converting from quaternion
 
         # Initial actual pose is at selected point
         self.actual_pose = [x, y, theta]
@@ -120,27 +118,21 @@ class ParticleFilter(Node):
 
         if self.received_particles:
             with self.lock:
-                self.get_logger().info("ODOM CALLBACK")
 
                 # Get new pose
-                xdot = -1*odom_data.twist.twist.linear.x
-                ydot = -1*odom_data.twist.twist.linear.y
-                # theta = 2*np.arccos(odom_data.twist.twist.angular.z)
-                thetadot = -1*odom_data.twist.twist.angular.z
+                xdot = odom_data.twist.twist.linear.x
+                ydot = odom_data.twist.twist.linear.y
+                thetadot = odom_data.twist.twist.angular.z
 
-                v = np.array([xdot,ydot,thetadot])
-                self.get_logger().info(str(v))
+                v = -1*np.array([xdot,ydot,thetadot])
                 current_time = time.time()
 
                 dt = current_time - self.prev_time
 
                 # Actually calling motion model with particles and new deltaX
                 delta_x = v * dt
-                # self.get_logger().info(str(delta_x))
 
-                # prev = self.particles[:]
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
-                # self.prev_pose = current_pose
                 self.prev_time = current_time
                 
                 # Updating actual pose with odom reading without noise
@@ -157,11 +149,10 @@ class ParticleFilter(Node):
 
         if self.received_particles:
             with self.lock:
-                self.get_logger().info("LASER CALLBACK")
 
                 ranges = scan_data.ranges
-                if len(ranges) > 100:
-                    ranges = ranges[ : : len(ranges) // 100]
+                if len(ranges) > 200:
+                    ranges = ranges[ : : len(ranges) // 200]
 
                 self.probs = self.sensor_model.evaluate(self.particles, ranges)
 
@@ -183,8 +174,6 @@ class ParticleFilter(Node):
         poses_msg.header.frame_id = "/map"
 
         poses_msg.poses = self.particles_to_poses(self.particles)
-
-        self.get_logger().info(str(poses_msg.poses[0]))
 
         self.all_pose_pub.publish(poses_msg)
 
@@ -226,6 +215,7 @@ class ParticleFilter(Node):
     
     def particles_to_poses(self, particles):
         poses = []
+    
         for particle in particles:
             pose = Pose()
             pose.position.x = particle[0]
@@ -233,8 +223,8 @@ class ParticleFilter(Node):
             pose.position.z = 0.0
             pose.orientation.x = 0.0
             pose.orientation.y = 0.0
-            pose.orientation.z = np.sin(1/2 * particle[2])
-            pose.orientation.w = np.cos(1/2 * particle[2])
+            pose.orientation.z = np.sin(particle[2] / 2)
+            pose.orientation.w = np.cos(particle[2] / 2)
 
             poses.append(pose)
 
