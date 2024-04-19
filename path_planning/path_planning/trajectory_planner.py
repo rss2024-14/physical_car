@@ -114,10 +114,6 @@ class PathPlan(Node):
         while counter < lim:
             x_rand = random.randint(0, self.map_width-1) # randomly generate a new x value
             y_rand = random.randint(0, self.map_height-1) # randomly generate a new y value
-
-            # Checking if random pose is valid(occupied space = 100, unoccupied space = 0, unknown space = -1 )
-            if (map[x_rand][y_rand] == 100) or (map[x_rand][y_rand] == -1): 
-                continue
             
             nearest_node = find_nearest_node(nodes, (x_rand, y_rand))
 
@@ -141,44 +137,9 @@ class PathPlan(Node):
                 self.traj_pub.publish(self.trajectory.toPoseArray())
                 self.trajectory.publish_viz()
 
-
-def transform_point(coord, res, offsets, pixel_to_world=True):
-    """
-    coord  : coordinates of the original point (x, y)
-    res: scaling factors along the x and y axes
-    offsets : (tx, ty, theta)
-    """
-    # Create the scaling matrix
-    S = np.array([[res, 0,  0],
-                  [0,  res, 0],
-                  [0,  0,  1]])
-
-    # Create the rotation matrix
-    R = np.array([[np.cos(offsets[2]), -np.sin(offsets[2]), 0],
-                  [np.sin(offsets[2]),  np.cos(offsets[2]), 0],
-                  [0,             0,              1]])
-    
-    # Create the translation matrix
-    T = np.array([[1, 0, offsets[0]],
-                  [0, 1, offsets[1]],
-                  [0, 0,  1]])
-
-    # Create the point vector
-    p = np.array([[coord[0]],
-                  [coord[1]],
-                  [1]])
-
-    # Apply the transformations: first scale, then rotate, then translate
-    if pixel_to_world:
-        p_prime = T @ (R @ (S @ p))
-    else:
-        S_inv = np.linalg.inv(S)
-        R_inv = np.linalg.inv(R)
-        T_inv = np.linalg.inv(T)
-        p_prime = S_inv @ (R_inv @ (T_inv @ p))
-
-    # Return the transformed point (x', y')
-    return tuple([p_prime[0, 0], p_prime[1, 0]])
+                break
+            
+            counter += 1
 
 
 class Node:
@@ -232,6 +193,45 @@ def find_next_point(point_a, point_b, length):
     next_point = [a + b for a, b in zip(point_a, scaled_vector)]
     
     return tuple(next_point)
+
+
+def transform_point(coord, res, offsets, pixel_to_world=True):
+    """
+    coord  : coordinates of the original point (x, y)
+    res: scaling factors along the x and y axes
+    offsets : (tx, ty, theta)
+    """
+    # Create the scaling matrix
+    S = np.array([[res, 0,  0],
+                  [0,  res, 0],
+                  [0,  0,  1]])
+
+    # Create the rotation matrix
+    R = np.array([[np.cos(offsets[2]), -np.sin(offsets[2]), 0],
+                  [np.sin(offsets[2]),  np.cos(offsets[2]), 0],
+                  [0,             0,              1]])
+    
+    # Create the translation matrix
+    T = np.array([[1, 0, offsets[0]],
+                  [0, 1, offsets[1]],
+                  [0, 0,  1]])
+
+    # Create the point vector
+    p = np.array([[coord[0]],
+                  [coord[1]],
+                  [1]])
+
+    # Apply the transformations: first scale, then rotate, then translate
+    if pixel_to_world:
+        p_prime = T @ (R @ (S @ p))
+    else:
+        S_inv = np.linalg.inv(S)
+        R_inv = np.linalg.inv(R)
+        T_inv = np.linalg.inv(T)
+        p_prime = S_inv @ (R_inv @ (T_inv @ p))
+
+    # Return the transformed point (x', y')
+    return tuple([p_prime[0, 0], p_prime[1, 0]])
 
 
 def main(args=None):
