@@ -136,6 +136,8 @@ class PathPlan(Node):
                 
                 self.traj_pub.publish(self.trajectory.toPoseArray())
                 self.trajectory.publish_viz()
+            
+            counter += 1
 
 
 class Node:
