@@ -6,6 +6,11 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
 from nav_msgs.msg import OccupancyGrid
 from .utils import LineTrajectory
 
+import tf_transformations
+import numpy as np
+import random
+import math
+
 
 class PathPlan(Node):
     """ Listens for goal pose published by RViz and uses it to plan a path from
@@ -21,6 +26,11 @@ class PathPlan(Node):
         self.odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
         self.map_topic = self.get_parameter('map_topic').get_parameter_value().string_value
         self.initial_pose_topic = self.get_parameter('initial_pose_topic').get_parameter_value().string_value
+
+        # Set map 2d, initial pose, and goal pose to None (awaiting map 2d, inital pose, and goal pose)
+        self.map_2d = None
+        self.initial_pose = None
+        self.goal_pose = None
 
         self.map_sub = self.create_subscription(
             OccupancyGrid,
@@ -50,18 +60,126 @@ class PathPlan(Node):
 
         self.trajectory = LineTrajectory(node=self, viz_namespace="/planned_trajectory")
 
-    def map_cb(self, msg):
-        raise NotImplementedError
+    def map_cb(self, map_1d):
+        # The /map topic only publishes once, so this function will only be ran once
+        self.get_logger().info('Received Map')
 
-    def pose_cb(self, pose):
-        raise NotImplementedError
+        # Reshaping occupancy grid
+        self.map_height = map_1d.info.height
+        self.map_width = map_1d.info.width
+        self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width))
 
-    def goal_cb(self, msg):
-        raise NotImplementedError
+
+    def pose_cb(self, start):
+        self.get_logger().info('Received Initial Position')
+
+        x = start.pose.pose.position.x
+        y = start.pose.pose.position.y
+
+        self.initial_pose = (x, y)
+
+    def goal_cb(self, end):
+        self.get_logger().info('Received Goal Position')
+
+        x = end.pose.position.x
+        y = end.pose.position.y
+
+        self.goal_pose = (x, y)
+
+        # Find path from initial pose to goal pose once goal pose has been set
+        self.plan_path(self.initial_pose, self.goal_pose, self.map_2d)
 
     def plan_path(self, start_point, end_point, map):
-        self.traj_pub.publish(self.trajectory.toPoseArray())
-        self.trajectory.publish_viz()
+        self.get_logger().info("Finding Trajectory")
+        
+        start_node = Node(start_point, parent=None) # make the start point a node
+
+        vertices = set() # initializing empty set for vertices
+        vertices.add(start_node)
+
+        counter = 0 # keeps track of iterations
+        lim = 1000 # number of iterations algorithm should run for
+        step = 1.0 # length of the step taken for next_point
+        error = 1.0 # valid error around goal pose
+
+        while counter < lim:
+            x_rand = random.randint(0, self.map_width-1) # randomly generate a new x value
+            y_rand = random.randint(0, self.map_height-1) # randomly generate a new y value
+
+            # Checking if random pose is valid(occupied space = 100, unoccupied space = 0, unknown space = -1 )
+            if (map[x_rand][y_rand] == 100) or (map[x_rand][y_rand] == -1): 
+                continue
+            
+            nearest_vertex = find_nearest_vertex(vertices, (x_rand, y_rand))
+
+            next_point = find_next_point(nearest_vertex, (x_rand, y_rand), step)
+
+            next_node = Node(next_point, parent=nearest_vertex)
+
+            vertices.add(next_node)
+
+            # Checking if goal pose has been reached
+            if (end_point[0]-error <= next_point[0] <= end_point[0]+error) and (end_point[1]-error <= next_point[1] <= end_point[1]+error):
+                path = next_node.path_from_root() # finding the path from initial to goal
+
+                for point in path:
+                    self.trajectory.addPoint(point) # adding the points to the trajectory
+                
+                self.traj_pub.publish(self.trajectory.toPoseArray())
+                self.trajectory.publish_viz()
+
+
+class Node:
+    def __init__(self, value, parent=None):
+        self.value = value
+        self.parent = parent
+
+    def path_from_root(self):
+        """ Return the sequence of nodes from the root to this node """
+        if self.parent is None:
+            return [self.value]
+        else:
+            path_to_parent = self.parent.path_from_root()
+            path_to_parent.append(self.value)
+            return path_to_parent
+
+
+def find_nearest_vertex(points, new_point):
+    """
+    points: a set of nodes
+    new_point: (x, y) of a new point
+    """
+    nearest_vertex = None
+    min_distance = float('inf')  # Start with infinity as the minimum distance
+    
+    for point in points:
+        coord = point.value
+        # Calculate the Euclidean distance
+        distance = math.sqrt((coord[0] - new_point[0])**2 + (coord[1] - new_point[1])**2)
+        
+        # Update the closest point if a new minimum distance is found
+        if distance < min_distance:
+            min_distance = distance
+            nearest_vertex = coord
+
+    return nearest_vertex
+
+
+def find_next_point(point_a, point_b, length):
+    # Calculate the displacement vector
+    d = [b - a for a, b in zip(point_a, point_b)]
+    
+    # Calculate the magnitude of the displacement vector
+    magnitude = math.sqrt(sum(comp ** 2 for comp in d))
+    
+    # Normalize the vector to get the unit vector, then scale it by the desired length
+    if magnitude == 0:
+        raise ValueError("The points are identical; cannot determine a unique direction vector.")
+    scaled_vector = [(comp / magnitude) * length for comp in d]
+
+    next_point = [a + b for a, b in zip(point_a, scaled_vector)]
+    
+    return tuple(next_point)
 
 
 def main(args=None):
