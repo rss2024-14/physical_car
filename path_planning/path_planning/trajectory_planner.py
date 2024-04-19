@@ -103,8 +103,8 @@ class PathPlan(Node):
         
         start_node = Node(start_point, parent=None) # make the start point a node
 
-        vertices = set() # initializing empty set for vertices
-        vertices.add(start_node)
+        nodes = set() # initializing empty set for nodes
+        nodes.add(start_node)
 
         counter = 0 # keeps track of iterations
         lim = 1000 # number of iterations algorithm should run for
@@ -119,20 +119,24 @@ class PathPlan(Node):
             if (map[x_rand][y_rand] == 100) or (map[x_rand][y_rand] == -1): 
                 continue
             
-            nearest_vertex = find_nearest_vertex(vertices, (x_rand, y_rand))
+            nearest_node = find_nearest_node(nodes, (x_rand, y_rand))
 
-            next_point = find_next_point(nearest_vertex, (x_rand, y_rand), step)
+            next_point = find_next_point(nearest_node.value, (x_rand, y_rand), step)
 
-            next_node = Node(next_point, parent=nearest_vertex)
+            # Checking if next point is valid(occupied space = 100, unoccupied space = 0, unknown space = -1 )
+            if (map[next_point[0]][next_point[1]] == 100) or (map[next_point[0]][next_point[1]] == -1): 
+                continue
 
-            vertices.add(next_node)
+            next_node = Node(next_point, parent=nearest_node)
+
+            nodes.add(next_node)
 
             # Checking if goal pose has been reached
             if (end_point[0]-error <= next_point[0] <= end_point[0]+error) and (end_point[1]-error <= next_point[1] <= end_point[1]+error):
                 path = next_node.path_from_root() # finding the path from initial to goal
 
                 for point in path:
-                    self.trajectory.addPoint(point) # adding the points to the trajectory
+                    self.trajectory.addPoint(transform_point(point, self.map_res, self.map_origin, pixel_to_world=True)) # adding the points to the trajectory
                 
                 self.traj_pub.publish(self.trajectory.toPoseArray())
                 self.trajectory.publish_viz()
@@ -188,11 +192,11 @@ class Node:
             return [self.value]
         else:
             path_to_parent = self.parent.path_from_root()
-            path_to_parent.append(self.value)
+            path_to_parent.extend(self.value)
             return path_to_parent
 
 
-def find_nearest_vertex(points, new_point):
+def find_nearest_node(nodes, new_point):
     """
     points: a set of nodes
     new_point: (x, y) of a new point
@@ -200,15 +204,15 @@ def find_nearest_vertex(points, new_point):
     nearest_vertex = None
     min_distance = float('inf')  # Start with infinity as the minimum distance
     
-    for point in points:
-        coord = point.value
+    for node in nodes:
+        coord = node.value
         # Calculate the Euclidean distance
         distance = math.sqrt((coord[0] - new_point[0])**2 + (coord[1] - new_point[1])**2)
         
         # Update the closest point if a new minimum distance is found
         if distance < min_distance:
             min_distance = distance
-            nearest_vertex = coord
+            nearest_vertex = node
 
     return nearest_vertex
 
