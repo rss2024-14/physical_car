@@ -64,9 +64,18 @@ class PathPlan(Node):
         # The /map topic only publishes once, so this function will only be ran once
         self.get_logger().info('Received Map')
 
-        # Reshaping occupancy grid
         self.map_height = map_1d.info.height
         self.map_width = map_1d.info.width
+        self.map_res = map_1d.info.resolution
+        
+        # Getting the origin info
+        orientation_q = map_1d.info.origin.orientation
+        quaternion = (orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w)
+        euler = tf_transformations.euler_from_quaternion(quaternion)
+        orientation = euler[2]
+        self.map_origin = (map_1d.info.origin.position.x, map_1d.origin.position.y, orientation)
+
+        # Reshaping occupancy grid
         self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width))
 
 
@@ -76,7 +85,7 @@ class PathPlan(Node):
         x = start.pose.pose.position.x
         y = start.pose.pose.position.y
 
-        self.initial_pose = (x, y)
+        self.initial_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False) 
 
     def goal_cb(self, end):
         self.get_logger().info('Received Goal Position')
@@ -84,7 +93,7 @@ class PathPlan(Node):
         x = end.pose.position.x
         y = end.pose.position.y
 
-        self.goal_pose = (x, y)
+        self.goal_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False) 
 
         # Find path from initial pose to goal pose once goal pose has been set
         self.plan_path(self.initial_pose, self.goal_pose, self.map_2d)
@@ -127,6 +136,45 @@ class PathPlan(Node):
                 
                 self.traj_pub.publish(self.trajectory.toPoseArray())
                 self.trajectory.publish_viz()
+
+
+def transform_point(coord, res, offsets, pixel_to_world=True):
+    """
+    coord  : coordinates of the original point (x, y)
+    res: scaling factors along the x and y axes
+    offsets : (tx, ty, theta)
+    """
+    # Create the scaling matrix
+    S = np.array([[res, 0,  0],
+                  [0,  res, 0],
+                  [0,  0,  1]])
+
+    # Create the rotation matrix
+    R = np.array([[np.cos(offsets[2]), -np.sin(offsets[2]), 0],
+                  [np.sin(offsets[2]),  np.cos(offsets[2]), 0],
+                  [0,             0,              1]])
+    
+    # Create the translation matrix
+    T = np.array([[1, 0, offsets[0]],
+                  [0, 1, offsets[1]],
+                  [0, 0,  1]])
+
+    # Create the point vector
+    p = np.array([[coord[0]],
+                  [coord[1]],
+                  [1]])
+
+    # Apply the transformations: first scale, then rotate, then translate
+    if pixel_to_world:
+        p_prime = T @ (R @ (S @ p))
+    else:
+        S_inv = np.linalg.inv(S)
+        R_inv = np.linalg.inv(R)
+        T_inv = np.linalg.inv(T)
+        p_prime = S_inv @ (R_inv @ (T_inv @ p))
+
+    # Return the transformed point (x', y')
+    return tuple([p_prime[0, 0], p_prime[1, 0]])
 
 
 class Node:
