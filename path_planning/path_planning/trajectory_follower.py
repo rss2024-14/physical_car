@@ -1,7 +1,10 @@
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from geometry_msgs.msg import PoseArray
+from visualization_msgs.msg import Marker
 from rclpy.node import Node
+import numpy as np
+from path_planning.visualization_tools import VisualizationTools
 
 from .utils import LineTrajectory
 
@@ -31,9 +34,15 @@ class PurePursuit(Node):
         self.drive_pub = self.create_publisher(AckermannDriveStamped,
                                                self.drive_topic,
                                                1)
+        
+        self.lookahead_pub = self.create_publisher(Marker, '/lookahead', 1)
 
     def pose_callback(self, odometry_msg):
-        raise NotImplementedError
+        
+        x_circ_pts = np.linspace(-self.L1, self.L1, 50)
+        x_circ_pts_twice = np.tile(x_circ_pts,2)
+        y_circ = np.concatenate( (np.sqrt(self.L1**2 - x_circ_pts**2), -np.sqrt(self.L1**2 - x_circ_pts**2)) )
+        VisualizationTools.plot_line(x_circ_pts_twice, y_circ, self.lookahead_pub, color=(1.,1.,1.), frame="/laser")
 
     def trajectory_callback(self, msg):
         self.get_logger().info(f"Receiving new trajectory {len(msg.poses)} points")
