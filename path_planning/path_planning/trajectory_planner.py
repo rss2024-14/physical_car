@@ -6,6 +6,9 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
 from nav_msgs.msg import OccupancyGrid
 from .utils import LineTrajectory
 
+from skimage.morphology import dilation
+
+import matplotlib.pyplot as plt
 import tf_transformations
 import numpy as np
 import random
@@ -73,10 +76,18 @@ class PathPlan(Node):
         quaternion = (orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w)
         euler = tf_transformations.euler_from_quaternion(quaternion)
         orientation = euler[2]
-        self.map_origin = (map_1d.info.origin.position.x, map_1d.origin.position.y, orientation)
+        self.map_origin = (map_1d.info.origin.position.x, map_1d.info.origin.position.y, orientation)
 
         # Reshaping occupancy grid
-        self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width))
+        self.get_logger().info("Map data %s" % ( set(map_1d.data), ))
+        self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width)).T
+        structure_elt = np.ones((21,21))
+        dilated_map = dilation(self.map_2d == 100, structure_elt)
+        self.map_2d[dilated_map] = 100
+
+        self.map_2d[self.map_2d == -1] = -100
+        plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
+        plt.show()
 
 
     def pose_cb(self, start):
@@ -86,6 +97,7 @@ class PathPlan(Node):
         y = start.pose.pose.position.y
 
         self.initial_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False) 
+        self.initial_pose = (int(self.initial_pose[0]), int(self.initial_pose[1]))
 
     def goal_cb(self, end):
         self.get_logger().info('Received Goal Position')
@@ -93,7 +105,7 @@ class PathPlan(Node):
         x = end.pose.position.x
         y = end.pose.position.y
 
-        self.goal_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False) 
+        self.goal_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False)
 
         # Find path from initial pose to goal pose once goal pose has been set
         self.plan_path(self.initial_pose, self.goal_pose, self.map_2d)
@@ -107,20 +119,29 @@ class PathPlan(Node):
         nodes.add(start_node)
 
         counter = 0 # keeps track of iterations
-        lim = 1000 # number of iterations algorithm should run for
-        step = 1.0 # length of the step taken for next_point
-        error = 1.0 # valid error around goal pose
+        lim = 5000 # number of iterations algorithm should run for
+        step = 5.0 # length of the step taken for next_point
+        error = 10.0 # valid error around goal pose
 
         while counter < lim:
-            x_rand = random.randint(0, self.map_width-1) # randomly generate a new x value
-            y_rand = random.randint(0, self.map_height-1) # randomly generate a new y value
-            
-            nearest_node = find_nearest_node(nodes, (x_rand, y_rand))
+            # Randomly generate a point in map
+            random_pt = (random.randint(0, self.map_width-1), random.randint(0, self.map_height-1))
+            # self.get_logger().info("x_rand %s // y_rand %s" % random_pt)
 
-            next_point = find_next_point(nearest_node.value, (x_rand, y_rand), step)
+            nearest_node = find_nearest_node(nodes, random_pt)
+            
+            # self.get_logger().info("nearest_node %s " % (nearest_node.value,))
+
+            if random_pt == nearest_node.value:
+                continue
+
+            next_point = find_next_point(nearest_node.value, random_pt, step)
+            # self.get_logger().info("next_point " + str(next_point))
 
             # Checking if next point is valid(occupied space = 100, unoccupied space = 0, unknown space = -1 )
+            # self.get_logger().info("nodes %s" % ( len(nodes), ))
             if (map[next_point[0]][next_point[1]] == 100) or (map[next_point[0]][next_point[1]] == -1): 
+                # self.get_logger().info("skipping " + str(map[next_point[0]][next_point[1]]))
                 continue
 
             next_node = Node(next_point, parent=nearest_node)
@@ -130,7 +151,7 @@ class PathPlan(Node):
             # Checking if goal pose has been reached
             if (end_point[0]-error <= next_point[0] <= end_point[0]+error) and (end_point[1]-error <= next_point[1] <= end_point[1]+error):
                 path = next_node.path_from_root() # finding the path from initial to goal
-
+                self.get_logger().info("path %s" % ( path, ))
                 for point in path:
                     self.trajectory.addPoint(transform_point(point, self.map_res, self.map_origin, pixel_to_world=True)) # adding the points to the trajectory
                 
@@ -153,7 +174,7 @@ class Node:
             return [self.value]
         else:
             path_to_parent = self.parent.path_from_root()
-            path_to_parent.extend(self.value)
+            path_to_parent.append(self.value)
             return path_to_parent
 
 
@@ -190,7 +211,7 @@ def find_next_point(point_a, point_b, length):
         raise ValueError("The points are identical; cannot determine a unique direction vector.")
     scaled_vector = [(comp / magnitude) * length for comp in d]
 
-    next_point = [a + b for a, b in zip(point_a, scaled_vector)]
+    next_point = [int(a + b) for a, b in zip(point_a, scaled_vector)]
     
     return tuple(next_point)
 
@@ -200,6 +221,8 @@ def transform_point(coord, res, offsets, pixel_to_world=True):
     coord  : coordinates of the original point (x, y)
     res: scaling factors along the x and y axes
     offsets : (tx, ty, theta)
+
+    Returns tuple of point (x', y')
     """
     # Create the scaling matrix
     S = np.array([[res, 0,  0],
