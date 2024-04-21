@@ -85,9 +85,9 @@ class PathPlan(Node):
         dilated_map = dilation(self.map_2d == 100, structure_elt)
         self.map_2d[dilated_map] = 100
 
-        self.map_2d[self.map_2d == -1] = -100
-        plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
-        plt.show()
+        # self.map_2d[self.map_2d == -1] = -100
+        # plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
+        # plt.show()
 
 
     def pose_cb(self, start):
