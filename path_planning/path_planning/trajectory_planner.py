@@ -122,10 +122,14 @@ class PathPlan(Node):
         lim = 5000 # number of iterations algorithm should run for
         step = 5.0 # length of the step taken for next_point
         error = 10.0 # valid error around goal pose
+        goal_probability = 0.4 # rate at which the goal point is picked
 
         while counter < lim:
             # Randomly generate a point in map
-            random_pt = (random.randint(0, self.map_width-1), random.randint(0, self.map_height-1))
+            if np.random.rand() < goal_probability:
+                random_pt = self.goal_pose
+            else:
+                random_pt = (random.randint(0, self.map_width-1), random.randint(0, self.map_height-1))
             # self.get_logger().info("x_rand %s // y_rand %s" % random_pt)
 
             nearest_node = find_nearest_node(nodes, random_pt)
