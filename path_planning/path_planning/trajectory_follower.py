@@ -26,7 +26,7 @@ class PurePursuit(Node):
         self.drive_topic = self.get_parameter('drive_topic').get_parameter_value().string_value
 
         self.lookahead = 0.3  # FILL IN #
-        self.speed = 0.5  # FILL IN #
+        self.speed = 1.0  # FILL IN #
         self.wheelbase_length = .3  # FILL IN #
         self.initialized_traj = False
 
@@ -85,8 +85,8 @@ class PurePursuit(Node):
         target_rotation = np.arctan2(target_in_robot_frame[1], target_in_robot_frame[0])[0]
         self.get_logger().info("target rotation %s" % (target_rotation*180/np.pi,))
         self.get_logger().info("heading %s" % (heading*180/np.pi,))
-        # self.get_logger().info("steering angle %s" % ( (heading - target_rotation)*180/np.pi,))
-        drive_cmd = self.build_drive_cmd(heading - target_rotation)
+        self.get_logger().info("steering angle %s" % ( (target_rotation)*180/np.pi,))
+        drive_cmd = self.build_drive_cmd(target_rotation)
         self.drive_pub.publish(drive_cmd)
 
     def trajectory_callback(self, msg):

@@ -81,13 +81,13 @@ class PathPlan(Node):
         # Reshaping occupancy grid
         self.get_logger().info("Map data %s" % ( set(map_1d.data), ))
         self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width)).T
-        structure_elt = np.ones((21,21))
+        structure_elt = np.ones((9,9))
         dilated_map = dilation(self.map_2d == 100, structure_elt)
         self.map_2d[dilated_map] = 100
 
-        # self.map_2d[self.map_2d == -1] = -100
-        # plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
-        # plt.show()
+        self.map_2d[self.map_2d == -1] = -100
+        plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
+        plt.show()
 
 
     def pose_cb(self, start):
