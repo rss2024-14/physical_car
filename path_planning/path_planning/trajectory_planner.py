@@ -81,13 +81,13 @@ class PathPlan(Node):
         # Reshaping occupancy grid
         self.get_logger().info("Map data %s" % ( set(map_1d.data), ))
         self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width)).T
-        structure_elt = np.ones((21,21))
+        structure_elt = np.ones((9,9))
         dilated_map = dilation(self.map_2d == 100, structure_elt)
         self.map_2d[dilated_map] = 100
 
-        # self.map_2d[self.map_2d == -1] = -100
-        # plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
-        # plt.show()
+        self.map_2d[self.map_2d == -1] = -100
+        plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
+        plt.show()
 
 
     def pose_cb(self, start):
@@ -122,10 +122,14 @@ class PathPlan(Node):
         lim = 5000 # number of iterations algorithm should run for
         step = 5.0 # length of the step taken for next_point
         error = 10.0 # valid error around goal pose
+        goal_probability = 0.4 # rate at which the goal point is picked
 
         while counter < lim:
             # Randomly generate a point in map
-            random_pt = (random.randint(0, self.map_width-1), random.randint(0, self.map_height-1))
+            if np.random.rand() < goal_probability:
+                random_pt = self.goal_pose
+            else:
+                random_pt = (random.randint(0, self.map_width-1), random.randint(0, self.map_height-1))
             # self.get_logger().info("x_rand %s // y_rand %s" % random_pt)
 
             nearest_node = find_nearest_node(nodes, random_pt)

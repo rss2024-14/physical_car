@@ -26,7 +26,7 @@ class PurePursuit(Node):
         self.drive_topic = self.get_parameter('drive_topic').get_parameter_value().string_value
 
         self.lookahead = 0.3  # FILL IN #
-        self.speed = 0.5  # FILL IN #
+        self.speed = 1.0  # FILL IN #
         self.wheelbase_length = .3  # FILL IN #
         self.initialized_traj = False
 
@@ -61,11 +61,7 @@ class PurePursuit(Node):
             odometry_msg.pose.pose.orientation.z,
             odometry_msg.pose.pose.orientation.w
         ]
-        *_, theta = tf_transformations.euler_from_quaternion([q[0], q[1], q[2], q[3]])
-
-        # mat = tf_transformations.quaternion_matrix(q)
-        # z_rot = np.arctan2(mat[1, 0], mat[0, 0])
-        heading = theta
+        *_, heading = tf_transformations.euler_from_quaternion([q[0], q[1], q[2], q[3]])
         
         pts = self.trajectory.points
         if self.index_in_path is None:
@@ -78,15 +74,13 @@ class PurePursuit(Node):
             self.index_in_path += 1
             self.index_in_path = min(self.index_in_path, len(self.trajectory.points)-1)
 
-        target_in_robot_frame = np.linalg.inv( self.tf_matrix(theta, robot_xy[0], robot_xy[1]) ) @ np.array([[target[0]], [target[1]], [1]])
+        target_in_robot_frame = np.linalg.inv( self.tf_matrix(heading, robot_xy[0], robot_xy[1]) ) @ np.array([[target[0]], [target[1]], [1]])
         
-        # self.get_logger().info("target x in RF %s, target y in RF %s" % (target_in_robot_frame[0], target_in_robot_frame[1]))
-
         target_rotation = np.arctan2(target_in_robot_frame[1], target_in_robot_frame[0])[0]
         self.get_logger().info("target rotation %s" % (target_rotation*180/np.pi,))
         self.get_logger().info("heading %s" % (heading*180/np.pi,))
-        # self.get_logger().info("steering angle %s" % ( (heading - target_rotation)*180/np.pi,))
-        drive_cmd = self.build_drive_cmd(heading - target_rotation)
+        self.get_logger().info("steering angle %s" % ( (target_rotation)*180/np.pi,))
+        drive_cmd = self.build_drive_cmd(target_rotation)
         self.drive_pub.publish(drive_cmd)
 
     def trajectory_callback(self, msg):
@@ -101,9 +95,17 @@ class PurePursuit(Node):
     def distance(self, p1, p2):
         return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
+    def angle(self, pt):
+        """
+        Accepts pt transformed to robot frame.
+        Returns angle of point relative to robot's heading.
+        """
+        return np.arctan2(pt[1], pt[0])[0]
+    
     def find_closest(self, pts, ref_pt):
         distances = [self.distance(pt, ref_pt) for pt in pts]
-        min_distance = min(distances)
+        reachable_distances = filter(lambda x: abs( self.angle(x) ) <= 0.872, distances) # about 50 degrees
+        min_distance = min(reachable_distances)
         return distances.index(min_distance)
     
     def build_drive_cmd(self, delta):
