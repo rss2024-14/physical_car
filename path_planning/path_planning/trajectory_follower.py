@@ -26,12 +26,14 @@ class PurePursuit(Node):
         self.drive_topic = self.get_parameter('drive_topic').get_parameter_value().string_value
 
         self.lookahead = 0.6  # FILL IN #
-        self.speed = 7.0 # FILL IN #
+        self.speed = 0.5 # FILL IN #
         self.wheelbase_length = .3  # FILL IN #
         self.initialized_traj = False
 
         self.index_in_path = None
         self.homogeneous_pts = None
+        self.actual_traj = None
+        self.print_traj = False
 
         self.trajectory = LineTrajectory("/followed_trajectory")
 
@@ -54,7 +56,7 @@ class PurePursuit(Node):
     def pose_callback(self, odometry_msg):
         if not self.initialized_traj:
             return
-        
+
         pts = self.trajectory.points            
         robot_xy = [ odometry_msg.pose.pose.position.x, odometry_msg.pose.pose.position.y ]
         q = [
@@ -75,6 +77,18 @@ class PurePursuit(Node):
             self.index_in_path = min(self.index_in_path + 1, len(self.trajectory.points)-1)
             log(self, "Seeking new index", self.index_in_path)
 
+        # Collecting points for actual trajectory
+        if self.actual_traj is None:
+            self.actual_traj = []
+        
+        self.actual_traj.append(tuple(robot_xy))
+        
+        if self.index_in_path == len(pts) - 1:
+            if not self.print_traj:
+                self.get_logger().info(f"Actual Trajectory: {self.actual_traj}")
+                self.get_logger().info(f"Planned Trajectory: {pts}")
+                self.print_traj = True
+        
         target_in_robot_frame = world_to_robot_tf @ self.homogenize_pt(target)
         target_rotation = self.angle(target_in_robot_frame)
         # self.get_logger().info("target rotation %s" % (target_rotation*180/np.pi,))
