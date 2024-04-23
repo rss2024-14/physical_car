@@ -54,7 +54,7 @@ class ParticleFilter(Node):
         self.theta_error_pub = self.create_publisher(Float32, "/theta_error", 1)
 
         # Initial variables and models for actual pose update
-        self.actual_pose = None
+        # self.actual_pose = None
         self.actual_motion = MotionModel(self, deterministic=True)
 
         # Initialize the models
@@ -78,14 +78,13 @@ class ParticleFilter(Node):
 
         ("Ideally with some sort of interactive interface in rviz")
         """
-
         # Converting pose_data to desired float variables
         x = pose_data.pose.pose.position.x
         y = pose_data.pose.pose.position.y
         *_, theta = tf_transformations.euler_from_quaternion([pose_data.pose.pose.orientation.x, pose_data.pose.pose.orientation.y, pose_data.pose.pose.orientation.z, pose_data.pose.pose.orientation.w])
 
         # Initial actual pose is at selected point
-        self.actual_pose = np.array([x, y, theta])
+        # self.actual_pose = np.array([x, y, theta])
 
         # Create particles based on this pose
         x_vals = np.random.normal(loc=x, scale=.1, size=self.num_particles)
@@ -124,19 +123,20 @@ class ParticleFilter(Node):
                 ydot = odom_data.twist.twist.linear.y
                 thetadot = odom_data.twist.twist.angular.z
 
-                v = -1*np.array([xdot,ydot,thetadot])
+                v = 1*np.array([xdot,ydot,thetadot])
                 current_time = time.time()
 
                 dt = current_time - self.prev_time
 
                 # Actually calling motion model with particles and new deltaX
                 delta_x = v * dt
+                self.get_logger().info("delta_x %s odom %s" % (delta_x, v))
 
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
                 self.prev_time = current_time
                 
                 # Updating actual pose with odom reading without noise
-                self.actual_pose = np.array(self.actual_motion.update_pose(self.actual_pose, delta_x))
+                # self.actual_pose = np.array(self.actual_motion.update_pose(self.actual_pose, delta_x))
 
                 #Because particles have been updated,
                 self.publish_pose_info(odom=True)
@@ -205,7 +205,7 @@ class ParticleFilter(Node):
             *_, theta = tf_transformations.euler_from_quaternion([odom_msg.pose.pose.orientation.x, odom_msg.pose.pose.orientation.y, odom_msg.pose.pose.orientation.z, odom_msg.pose.pose.orientation.w])
             estimated_pose = np.array([x, y, theta])
 
-            x_error.data, y_error.data, theta_error.data = np.abs(self.actual_pose-estimated_pose)
+            # x_error.data, y_error.data, theta_error.data = np.abs(self.actual_pose-estimated_pose)
 
             self.x_error_pub.publish(x_error)
             self.y_error_pub.publish(y_error)

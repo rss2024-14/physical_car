@@ -40,15 +40,17 @@ class MotionModel:
         # Current particle position
 
         [x, y, t] = particle
-        
-        xk = particle + self.rot(t) @ np.array(odom).T
-
-        [xp, yp, tp] = xk
 
         if not self.deterministic:
-            xp += np.random.normal(scale=.15)#self.noise
-            yp += np.random.normal(scale=.15)#self.noise
-            tp += np.random.normal(scale=.15)#self.noise
+            x += np.random.normal(scale=.1)#self.noise
+            y += np.random.normal(scale=.1)#self.noise
+            t += np.random.normal(scale=.1)#self.noise
+
+        xk = np.array([x,y,t]).reshape(3,1) + self.rot(t) @ odom.T
+
+        xp = xk[0][0]
+        yp = xk[1][0]
+        tp = xk[2][0]
 
         return [xp, yp, tp]
 

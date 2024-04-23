@@ -5,8 +5,10 @@ assert rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
 from nav_msgs.msg import OccupancyGrid
 from .utils import LineTrajectory
+from .utils import log
 
 from skimage.morphology import dilation
+from skimage.draw import line
 
 import matplotlib.pyplot as plt
 import tf_transformations
@@ -81,13 +83,13 @@ class PathPlan(Node):
         # Reshaping occupancy grid
         self.get_logger().info("Map data %s" % ( set(map_1d.data), ))
         self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width)).T
-        structure_elt = np.ones((9,9))
+        structure_elt = np.ones((28,28))
         dilated_map = dilation(self.map_2d == 100, structure_elt)
         self.map_2d[dilated_map] = 100
 
-        self.map_2d[self.map_2d == -1] = -100
-        plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
-        plt.show()
+        # self.map_2d[self.map_2d == -1] = -100
+        # plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
+        # plt.show()
 
 
     def pose_cb(self, start):
@@ -120,9 +122,9 @@ class PathPlan(Node):
 
         counter = 0 # keeps track of iterations
         lim = 5000 # number of iterations algorithm should run for
-        step = 5.0 # length of the step taken for next_point
+        step = 7.0 # length of the step taken for next_point
         error = 10.0 # valid error around goal pose
-        goal_probability = 0.4 # rate at which the goal point is picked
+        goal_probability = .4 # rate at which the goal point is picked
 
         while counter < lim:
             # Randomly generate a point in map
@@ -155,8 +157,9 @@ class PathPlan(Node):
             # Checking if goal pose has been reached
             if (end_point[0]-error <= next_point[0] <= end_point[0]+error) and (end_point[1]-error <= next_point[1] <= end_point[1]+error):
                 path = next_node.path_from_root() # finding the path from initial to goal
-                self.get_logger().info("path %s" % ( path, ))
-                for point in path:
+                processed_path = self.postprocess(path)
+
+                for point in processed_path:
                     self.trajectory.addPoint(transform_point(point, self.map_res, self.map_origin, pixel_to_world=True)) # adding the points to the trajectory
                 
                 self.traj_pub.publish(self.trajectory.toPoseArray())
@@ -165,6 +168,34 @@ class PathPlan(Node):
                 break
             
             counter += 1
+
+    def postprocess(self, path):
+        def intersection(subpath):
+            return np.sum( (subpath == 1) & ( (self.map_2d == 100) | (self.map_2d == -1) ) ) >= 30
+        
+        def build_subpath(start_i, end_i):
+            img = np.zeros(self.map_2d.shape)
+            rr, cc = line(path[start_i][0], path[start_i][1], path[end_i][0], path[end_i][1])
+            img[rr, cc] = 1
+            return img
+
+        start_i = 0
+        delta = 1
+        end_i = start_i + delta
+        processed_path = []
+
+        while end_i < len(path) - 1:
+            log(self, "Subpath indices", (start_i, end_i))
+            subpath = build_subpath(start_i, end_i)
+            while not intersection(subpath) and end_i < len(path) - 1:
+                end_i += delta
+                subpath = build_subpath(start_i, end_i)
+
+            processed_path += [path[start_i], path[end_i]]
+            start_i = end_i
+            end_i += delta
+
+        return processed_path
 
 
 class Node:
