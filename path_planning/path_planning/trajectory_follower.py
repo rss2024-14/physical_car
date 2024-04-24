@@ -10,6 +10,7 @@ from .utils import log
 from nav_msgs.msg import Odometry
 import numpy as np
 from std_msgs.msg import Int32
+from std_msgs.msg import Float32
 import time
 from .utils import LineTrajectory
 from std_msgs.msg import String
@@ -27,7 +28,7 @@ class PurePursuit(Node):
         self.drive_topic = self.get_parameter('drive_topic').get_parameter_value().string_value
 
         self.lookahead = 0.85  # FILL IN #
-        self.speed = 0.98 # FILL IN #
+        self.speed = 0.70 # FILL IN #
         self.wheelbase_length = .3  # FILL IN #
         self.initialized_traj = False
 
@@ -58,6 +59,13 @@ class PurePursuit(Node):
         
         self.line_pub = self.create_publisher(Marker, "/wall", 1)
 
+        # self.robot_y_pub = self.create_publisher(Float32, "/robot_y", 1)
+        self.stop_indices = []
+        self.stop_sub = self.create_subscription(Int32,
+                                                 "/stop_pub",
+                                                 self.stop_cb,
+                                                 1)
+
         self.clicked_indices_sub = self.create_subscription(
             Int32,
             '/clicked_indices',
@@ -65,18 +73,21 @@ class PurePursuit(Node):
             10
         )
 
-        self.traffic_sub = self.create_subscription(String,
-                                                 "/traffic_light",
-                                                 self.traffic_callback,
-                                                 1)
+        # self.traffic_sub = self.create_subscription(String,
+        #                                          "/traffic_light",
+        #                                          self.traffic_callback,
+        #                                          1)
 
+    def stop_cb(self, msg):
+        self.stop_indices.append(msg.data)
+        
     def traffic_callback(self, msg):
         traffic_status = msg.data
         if msg.data == "STOP" and self.traffic_stop:
             self.speed = 0
             self.get_logger().info("TRAFFIC STOP")
         else:
-            self.speed = 0.98
+            self.speed = 0.70
 
     def clicked_indices_cb(self, msg):
         self.goal_indices.append(msg.data)
@@ -85,6 +96,12 @@ class PurePursuit(Node):
     def distance(self, p1, p2):
         return ( (p2[1] - p1[1])**2 + (p2[0] - p2[0])**2 )**0.5
 
+    def convert_to_float_and_publish(self, data):
+        msg = Float32()
+        msg.data = data
+        self.robot_y_pub.publish(msg)
+        self.get_logger().info("Robot y %s" % (data,))
+
     def pose_callback(self, odometry_msg):
         if not self.initialized_traj:
             return
@@ -92,11 +109,13 @@ class PurePursuit(Node):
         if (self.at_goal_time and time.time() - self.at_goal_time < 5):
             self.speed = 0.0
         else:
-            self.speed = 0.98
+            self.speed = 0.70
             self.at_goal_time = None
 
         pts = self.trajectory.points            
         robot_xy = [ odometry_msg.pose.pose.position.x, odometry_msg.pose.pose.position.y ]
+        # self.convert_to_float_and_publish(robot_xy[1])
+        
         q = [
             odometry_msg.pose.pose.orientation.x,
             odometry_msg.pose.pose.orientation.y,
@@ -124,6 +143,9 @@ class PurePursuit(Node):
             if self.index_in_path == self.goal_indices[0] and self.at_goal_time is None:
                 self.goal_indices.pop(0)
                 self.at_goal_time = time.time()
+            
+            # if self.index_in_path in self.stop_indices and self.at_goal_time is None:
+            #     self.at_goal_time = time.time() - 2
 
             self.index_in_path = min(self.index_in_path + 1, len(pts)-1)
             target = self.trajectory.points[self.index_in_path]

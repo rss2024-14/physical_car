@@ -13,7 +13,7 @@ class MotionModel:
     def rotation_matrix(self, theta):
         return np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
 
-    def evaluate(self, particles, odometry, determ_override=False):
+    def evaluate(self, particles, odometry, noise_factor=1, determ_override=False):
         """
         Update the particles to reflect probable
         future states given the odometry data.
@@ -38,7 +38,7 @@ class MotionModel:
 
         dx, dy, dtheta = odometry
 
-        x_std = .05 * 2
+        x_std = .05 * 2 * noise_factor
         y_std = .01 * 2
         thetastd = np.pi / 30 * 2
 
@@ -48,9 +48,9 @@ class MotionModel:
         count = 0
 
         for prtcl in particles:
-            xnoise = x_std * np.random.normal() if (not self.deterministic and not determ_override) else 0
-            ynoise = y_std * np.random.normal() if (not self.deterministic and not determ_override) else 0
-            thetanoise = thetastd * np.random.normal() if (not self.deterministic and not determ_override) else 0
+            xnoise = x_std * np.random.normal() if (not self.deterministic) else 0
+            ynoise = y_std * np.random.normal() if (not self.deterministic) else 0
+            thetanoise = thetastd * np.random.normal() if (not self.deterministic) else 0
 
             x, y, theta = prtcl[0], prtcl[1], prtcl[2]
             prev_trans_vec = np.array([[x], [y]])

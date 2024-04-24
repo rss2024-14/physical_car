@@ -8,6 +8,7 @@ from rclpy.node import Node
 from scipy.stats import circmean
 from sensor_msgs.msg import LaserScan
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
+from std_msgs.msg import Float32
 
 from localization.motion_model import MotionModel
 from localization.sensor_model import SensorModel
@@ -98,6 +99,8 @@ class ParticleFilter(Node):
                                                  self.odom_callback,
                                                  1)
 
+        self.robot_y = 1
+
         #  *Important Note #2:* You must respond to pose
         #     initialization requests sent to the /initialpose
         #     topic. You can test that this works properly using the
@@ -108,14 +111,18 @@ class ParticleFilter(Node):
                                                  self.pose_callback,
                                                  1)
 
-        self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
-                                                 self.clicked_callback,
-                                                 1)
+        # self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
+        #                                          self.clicked_callback,
+        #                                          1)
+
+        # self.robot_y_sub = self.create_subscription(Float32, '/robot_y',
+        #                                          self.robot_y_cb,
+        #                                          1)
 
         self.get_logger().info("=============meow +READY+ meow=============")
 
-    def clicked_callback(self, msg):
-        self.clicked_point = True
+    def robot_y_cb(self, msg):
+        self.robot_y = msg.data
 
     def getOdometryMsg(self, debug=True):
         """
@@ -258,8 +265,8 @@ class ParticleFilter(Node):
         delta_x = [-dx, -dy, -dtheta]
 
         self.prev_time = now
-
-        self.particles = self.motion_model.evaluate(self.particles, delta_x, self.clicked_point)
+        # self.get_logger().info("robot y %s" % (self.robot_y,))
+        self.particles = self.motion_model.evaluate(self.particles, delta_x, noise_factor=1 )
 
         msg = self.getOdometryMsg()
         self.odom_pub.publish(msg)

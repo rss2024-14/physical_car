@@ -52,6 +52,12 @@ class PathPlan(Node):
             10
         )
 
+        self.stop_pub = self.create_publisher(
+            Int32,
+            "/stop_pub",
+            10
+        )
+
         self.clicked_indices = self.create_publisher(
             Int32,
             "/clicked_indices",
@@ -269,11 +275,23 @@ class PathPlan(Node):
                     self.current_traj, self.opp_traj = self.opp_traj, self.current_traj
                     interpolated_current, interpolated_opp = interpolated_opp, interpolated_current
 
+        #Publishing stop sign indices
+        # stop_sign = (-9.20293807, 26.30563735)
+        # stop_indices = [idx for idx,elm in enumerate(planned_trajectory) if elm == stop_sign]
+
+        # for idx in stop_indices:
+        #     msg = Int32()
+        #     msg.data = idx
+        #     self.stop_pub.publish(msg)
+
+        #Publishing Path
         for point in planned_trajectory:
             self.trajectory.addPoint(point) # adding the points to the trajectory
         
         self.traj_pub.publish(self.trajectory.toPoseArray())
         self.trajectory.publish_viz()
+
+
 
 
 #Unaddressed edge cases:s

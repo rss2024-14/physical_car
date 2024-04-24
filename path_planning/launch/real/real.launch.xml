@@ -13,6 +13,6 @@
     <node pkg="safety_controller" exec="safety_controller" name="safety_controller" output="screen">
         <param from="$(find-pkg-share safety_controller)/params.yaml"/>
     </node>
-    <node pkg="visual_servoing" exec="tf_detector" name="tf_detector" output="screen">
-    </node>
+    <!-- <node pkg="visual_servoing" exec="tf_detector" name="tf_detector" output="screen">
+    </node> -->
 </launch>
