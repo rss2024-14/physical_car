@@ -54,6 +54,7 @@ class ConeDetector(Node):
         #################################
 
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
+        bar_image = image[175:225, :]
         # h, w = image_orig.shape[:2]
         # self.get_logger().info("%s" % (h*w,))
         h, w = image.shape[:2]
@@ -78,6 +79,39 @@ class ConeDetector(Node):
                          
         ################
 
+        ## Hough Transform ##
+
+        # ksize = (3,3)
+        # bar_image = cv2.blur(bar_image, ksize)
+        # mask = np.zeros((bar_image.shape[0], bar_image.shape[1]), dtype=np.uint8)
+        # gray = cv2.cvtColor(bar_image, cv2.COLOR_BGR2GRAY)
+        # edges=cv2.Canny(gray,50,150,apertureSize=3)
+        # img_dilation = cv2.dilate(edges, np.ones((4,4), np.uint8), iterations=1)
+        # lines = cv2.HoughLinesP(
+        #     img_dilation,
+        #     1,
+        #     np.pi/180,
+        #     threshold=100,
+        #     minLineLength=5,
+        #     maxLineGap=10
+        # )
+
+        # lines_list = []
+
+        # for points in lines:
+        #     x1,y1,x2,y2 = points[0]
+        #     lines_list.append([(x1,y1), (x2,y2)])
+        #     slope = (y2-y1) / (x2-x1) if (x2-x1) != 0 else np.inf
+
+        #     if abs(slope) <=.2:
+        #         cv2.line(mask,(x1,y1),(x2,y2),color=(255,255,255), thickness = 2)
+
+        # bar_image = cv2.inpaint(bar_image, mask, 3, cv2.INPAINT_TELEA)
+
+
+
+        #####################
+
 
         # height, width = image.shape[:2]
         #  # Calculate the width of each segment
@@ -96,12 +130,12 @@ class ConeDetector(Node):
         # x2_orig = x2 + left_segment_start
         # y1_orig = y1
         # y2_orig = y2
-        bar_image = image[175:225, :]
-        left_half = image[175:225,:w//2]
+        
+        left_half = bar_image[:,:w//2]
         
         ### NEW CODE ###
 
-        right_half = image[175:225, (w//2):]
+        right_half = bar_image[:, (w//2):]
         right_bounds = cd_color_segmentation(right_half)
         right_coord1, right_coord2 = right_bounds
 
@@ -134,15 +168,22 @@ class ConeDetector(Node):
         # self.get_logger().info("COORDS2 %s %s %s %s" % (x11, y11, x21, y21))
         #self.get_logger().info("run")
 
-        x1 = (left_x1 + right_x1+w//2)//2
-        x2 = (left_x2 + right_x2+w//2)//2
-        y1 = (left_y1 + right_y1)//2
-        y2 = (left_y2 + right_y2)//2
+        # x1 = (left_x1 + right_x1+w//2)//2
+        # x2 = (left_x2 + right_x2+w//2)//2
+        # y1 = (left_y1 + right_y1)//2
+        # y2 = (left_y2 + right_y2)//2
+
+        x1 = left_x2
+        x2 = right_x1+w//2
+        y1 = left_y1
+        y2 = right_y2
+
+
 
         pixel_img_msg = ConeLocationPixel()
         # pixel_img_msg.u = float((x1 + x2)//2 + 155) #+ img2_cols//3)
         # pixel_img_msg.u = float((x1 + x2)//2 - 30) #+ img2_cols//3)
-        pixel_img_msg.u = float((x1 + x2)//2) #+ img2_cols//3)
+        pixel_img_msg.u = float((x1 + x2)//2) - 15 #+ img2_cols//3)
         pixel_img_msg.v = float(y2 + 175)
 
         self.cone_pub.publish(pixel_img_msg)
@@ -156,11 +197,16 @@ class ConeDetector(Node):
 
 
         #cv2.rectangle(image, (x1,y1+175), (x2,y2+175), (255,0,0),2)
-        cv2.rectangle(image, (right_x1 + w//2, right_y1+175), (right_x2+w//2, right_y2+175), (0,255,0),2)
-        cv2.rectangle(image, (left_x1, left_y1+175), (left_x2, left_y2+175), (0,255,0),2)
-        #cv2.rectangle(bar_image, (x1, y1 + 175), (x2, y2 + 175), (0,255,0),2)
+        cv2.rectangle(bar_image, (right_x1 + w//2, right_y1), (right_x2+w//2, right_y2), (0,255,0),2)
+        cv2.rectangle(bar_image, (left_x1, left_y1), (left_x2, left_y2), (0,255,0),2)
+        cv2.rectangle(bar_image, (x1-20, y1), (x2-20,y2), (255,0,0),2)
+
+        # cv2.rectangle(image, (right_x1 + w//2, right_y1+175), (right_x2+w//2, right_y2+175), (0,255,0),2)
+        # cv2.rectangle(image, (left_x1, left_y1+175), (left_x2, left_y2+175), (0,255,0),2)
+        # cv2.rectangle(image, (x1-20, y1+175), (x2-20,y2+175), (255,0,0),2)
+        
         #self.get_logger().info("image")
-        debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
+        debug_msg = self.bridge.cv2_to_imgmsg(bar_image, "bgr8")
         self.debug_pub.publish(debug_msg)
 
 def main(args=None):
