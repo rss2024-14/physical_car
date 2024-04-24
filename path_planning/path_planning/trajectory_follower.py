@@ -9,9 +9,10 @@ import tf_transformations
 from .utils import log
 from nav_msgs.msg import Odometry
 import numpy as np
-
+from std_msgs.msg import Int32
+import time
 from .utils import LineTrajectory
-
+from std_msgs.msg import String
 
 class PurePursuit(Node):
     """ Implements Pure Pursuit trajectory tracking with a fixed lookahead and speed.
@@ -25,13 +26,19 @@ class PurePursuit(Node):
         self.odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
         self.drive_topic = self.get_parameter('drive_topic').get_parameter_value().string_value
 
-        self.lookahead = 1.0  # FILL IN #
+        self.lookahead = 0.85  # FILL IN #
         self.speed = 0.98 # FILL IN #
         self.wheelbase_length = .3  # FILL IN #
         self.initialized_traj = False
 
         self.index_in_path = None
         self.homogeneous_pts = None
+        self.at_goal_time = None
+        self.traffic_stop = False
+
+        self.traffic_lights = [(-12.276, 13.803)]
+        self.goal_indices = []
+
 
         self.trajectory = LineTrajectory("/followed_trajectory")
 
@@ -51,9 +58,42 @@ class PurePursuit(Node):
         
         self.line_pub = self.create_publisher(Marker, "/wall", 1)
 
+        self.clicked_indices_sub = self.create_subscription(
+            Int32,
+            '/clicked_indices',
+            self.clicked_indices_cb,
+            10
+        )
+
+        self.traffic_sub = self.create_subscription(String,
+                                                 "/traffic_light",
+                                                 self.traffic_callback,
+                                                 1)
+
+    def traffic_callback(self, msg):
+        traffic_status = msg.data
+        if msg.data == "STOP" and self.traffic_stop:
+            self.speed = 0
+            self.get_logger().info("TRAFFIC STOP")
+        else:
+            self.speed = 0.98
+
+    def clicked_indices_cb(self, msg):
+        self.goal_indices.append(msg.data)
+        # self.get_logger().info("%s", (self.goal_indices,))
+
+    def distance(self, p1, p2):
+        return ( (p2[1] - p1[1])**2 + (p2[0] - p2[0])**2 )**0.5
+
     def pose_callback(self, odometry_msg):
         if not self.initialized_traj:
             return
+        
+        if (self.at_goal_time and time.time() - self.at_goal_time < 5):
+            self.speed = 0.0
+        else:
+            self.speed = 0.98
+            self.at_goal_time = None
 
         pts = self.trajectory.points            
         robot_xy = [ odometry_msg.pose.pose.position.x, odometry_msg.pose.pose.position.y ]
@@ -65,16 +105,28 @@ class PurePursuit(Node):
         ]
         *_, heading = tf_transformations.euler_from_quaternion([q[0], q[1], q[2], q[3]])
 
-        world_to_robot_tf =  np.linalg.inv( self.tf_matrix(heading, robot_xy[0], robot_xy[1]) ) # world frame to robot frame
+        world_to_robot_tf = np.linalg.inv( self.tf_matrix(heading, robot_xy[0], robot_xy[1]) ) # world frame to robot frame
+
+        # for pt in self.traffic_lights:
+        #     if self.distance(pt, robot_xy) < 5:
+        #         self.traffic_stop = True
+        #         self.get_logger().info("TRAFFIC INTERSECTION")
+        #     else:
+        #         self.traffic_stop = False
+                # self.get_logger().info("NO TRAFFIC")
 
         if self.index_in_path is None:
             self.index_in_path = self.find_closest(pts, robot_xy, world_to_robot_tf)
 
         target = self.trajectory.points[self.index_in_path]
+
         if self.distance(target, robot_xy) < self.lookahead:
+            if self.index_in_path == self.goal_indices[0] and self.at_goal_time is None:
+                self.goal_indices.pop(0)
+                self.at_goal_time = time.time()
+
             self.index_in_path = min(self.index_in_path + 1, len(pts)-1)
             target = self.trajectory.points[self.index_in_path]
-            log(self, "seeking new index", self.index_in_path)
         
         # if self.index_in_path == len(pts) - 1 and self.distance(target, robot_xy) < self.lookahead:
         #     log(self, "Actual trajectory", self.actual_traj)
@@ -97,7 +149,7 @@ class PurePursuit(Node):
         dt = (now - self.prev_time).nanoseconds / 1e9
         self.prev_time = now
 
-        drive_cmd = self.build_drive_cmd(target_rotation * 0.29 + .02)
+        drive_cmd = self.build_drive_cmd(self.speed, target_rotation * 0.29 + .02)
         self.drive_pub.publish(drive_cmd)
 
     def trajectory_callback(self, msg):
@@ -163,7 +215,7 @@ class PurePursuit(Node):
         log(self, "number of points", len(all_distances))
         return all_distances.index(min_distance)
     
-    def build_drive_cmd(self, delta):
+    def build_drive_cmd(self, speed, delta):
         """
         Args:
             delta: steering angle in radians
@@ -173,7 +225,7 @@ class PurePursuit(Node):
         drive_cmd = AckermannDriveStamped()
         drive_cmd.header.stamp = self.get_clock().now().to_msg()
         drive_cmd.header.frame_id = "/base_link"
-        drive_cmd.drive.speed = self.speed
+        drive_cmd.drive.speed = speed
         drive_cmd.drive.steering_angle = delta
         return drive_cmd
     

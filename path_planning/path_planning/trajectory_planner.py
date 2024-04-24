@@ -8,6 +8,7 @@ from .utils import LineTrajectory
 from .utils import log
 from geometry_msgs.msg import PointStamped
 import tf_transformations
+from std_msgs.msg import Int32
 
 import math
 import numpy as np
@@ -48,6 +49,12 @@ class PathPlan(Node):
         self.traj_pub = self.create_publisher(
             PoseArray,
             "/trajectory/current",
+            10
+        )
+
+        self.clicked_indices = self.create_publisher(
+            Int32,
+            "/clicked_indices",
             10
         )
     
@@ -187,6 +194,11 @@ class PathPlan(Node):
         # Return the transformed point (x', y')
         return tuple([p_prime[0, 0], p_prime[1, 0]])
 
+    def convert_and_publish(self, data):
+        msg = Int32()
+        msg.data = data
+        self.clicked_indices.publish(msg)
+        
     def main_stuff_happening(self, goals):
         current_index = 0
         planned_trajectory = [self.current_traj[0]]
@@ -194,6 +206,8 @@ class PathPlan(Node):
         interp_dis = 1 #To play with and decide
         interpolated_current = self.generate_interpolated_traj(self.current_traj, interp_dis)
         interpolated_opp = self.generate_interpolated_traj(self.opp_traj, interp_dis)
+
+        goals.append(self.opp_traj[-1])
 
         for goal in goals:
 
@@ -205,6 +219,7 @@ class PathPlan(Node):
                 before, after = self.find_encasing_indices(goal, self.current_traj)
 
                 planned_trajectory.extend(self.current_traj[current_index + 1 : before + 1])
+                self.convert_and_publish(len(planned_trajectory))
                 planned_trajectory.append(goal) #Goal with STOP marker
                 #Iffy, I want it to get back on next point to resume from track but could have issues
                 planned_trajectory.append(self.current_traj[after])
@@ -236,11 +251,13 @@ class PathPlan(Node):
                 planned_trajectory.extend(self.current_traj[current_index + 1 : before + 1])
 
                 if opposite_ahead:
+                    self.convert_and_publish(len(planned_trajectory))
                     planned_trajectory.extend([goal, self.current_traj[after]])
                     current_index = after
 
                 # Still needs one final turn
                 else:
+                    self.convert_and_publish(len(planned_trajectory)+1)
                     planned_trajectory.extend([self.current_traj[after], goal])
                     #Taking it to next point after goal
                     after_goal = self.find_encasing_indices(goal, self.opp_traj)[1]

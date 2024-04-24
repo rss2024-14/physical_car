@@ -108,9 +108,9 @@ class ParticleFilter(Node):
                                                  self.pose_callback,
                                                  1)
 
-        # self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
-        #                                          self.clicked_callback,
-        #                                          1)
+        self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
+                                                 self.clicked_callback,
+                                                 1)
 
         self.get_logger().info("=============meow +READY+ meow=============")
 
@@ -259,7 +259,7 @@ class ParticleFilter(Node):
 
         self.prev_time = now
 
-        self.particles = self.motion_model.evaluate(self.particles, delta_x)
+        self.particles = self.motion_model.evaluate(self.particles, delta_x, self.clicked_point)
 
         msg = self.getOdometryMsg()
         self.odom_pub.publish(msg)

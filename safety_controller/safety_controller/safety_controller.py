@@ -8,8 +8,6 @@ from visualization_msgs.msg import Marker
 from nav_msgs.msg import Odometry
 import tf_transformations
 
-from wall_follower.visualization_tools import VisualizationTools
-
 class SafetyController(Node):
     def __init__(self):
         super().__init__("safety_controller")
@@ -60,7 +58,7 @@ class SafetyController(Node):
         # Braking distance for a car is proportional to the square of the car's speed (Must be changed for physical car)
 
         if ahead_distance < 0.6:
-            self.get_logger().info("!!!!!!!!!!!!!!! SAFETY INTERCEPT.")
+            # self.get_logger().info("!!!!!!!!!!!!!!! SAFETY INTERCEPT.")
             safety_cmd = AckermannDriveStamped()
             safety_cmd.header.stamp = self.get_clock().now().to_msg()
             safety_cmd.header.frame_id = "/base_link"
