@@ -108,9 +108,9 @@ class ParticleFilter(Node):
                                                  self.pose_callback,
                                                  1)
 
-        self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
-                                                 self.clicked_callback,
-                                                 1)
+        # self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
+        #                                          self.clicked_callback,
+        #                                          1)
 
         self.get_logger().info("=============meow +READY+ meow=============")
 
