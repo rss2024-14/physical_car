@@ -1,71 +1,19 @@
 import numpy as np
 
+
 class MotionModel:
 
-    def __init__(self, node, deterministic = False):
+    def __init__(self, node):
         ####################################
-        # TODO
-        # Do any precomputation for the motion
-        # model here.
-        self.logger = node.get_logger()
-        self.deterministic = deterministic
-
-        # Random Number Generator
-        rng = np.random.default_rng()
-
-        # Normal Distribution
-        self.noise = rng.normal()
-
-        # Uniform Distribution
-        #self.noise = rng.uniform()
-
-        # Triangular Distribution
-        # self.noise = rng.triangular()
-
-        # Poisson Distribution
-        # self.noise = rng.poisson()
-
+        node.declare_parameter("deterministic", "default")
+        self.node = node
+        self.deterministic = node.get_parameter("deterministic").get_parameter_value().bool_value
         ####################################
-    
-    def rot(self, angles):
-        cos_theta = np.cos(angles)
-        sin_theta = np.sin(angles)
-        
-        return np.array([[cos_theta, -sin_theta, 0],
-                         [sin_theta,  cos_theta, 0 ],
-                         [0, 0, 1]])
 
+    def rotation_matrix(self, theta):
+        return np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
 
-    def update_pose(self, particle, odom):
-        # Current particle position
-
-        [x, y, t] = particle
-
-        if not self.deterministic:
-            x += np.random.normal(scale=.1)#self.noise
-            y += np.random.normal(scale=.1)#self.noise
-            t += np.random.normal(scale=.1)#self.noise
-
-        xk = np.array([x,y,t]).reshape(3,1) + self.rot(t) @ odom.T
-
-        xp = xk[0][0]
-        yp = xk[1][0]
-        tp = xk[2][0]
-
-        return [xp, yp, tp]
-
-        # angles = particles[:,2]
-        # ct = np.cos(angles)
-        # st = np.sin(angles)
-                
-        # motion = np.array(
-        #     [ct * odom[0] - st * odom[1],
-        #      st * odom[0] + ct * odom[1],
-        #      np.full(np.shape(ct), odom[2]) ])
-        
-        # return particles + motion + np.random.normal(scale=0.15, size=np.shape(motion)) if self.deterministic else 0
-
-    def evaluate(self, particles, odom):
+    def evaluate(self, particles, odometry):
         """
         Update the particles to reflect probable
         future states given the odometry data.
@@ -74,7 +22,7 @@ class MotionModel:
             particles: An Nx3 matrix of the form:
 
                 [x0 y0 theta0]
-                [x1 y1 theta1]
+                [x1 y0 theta1]
                 [    ...     ]
 
             odometry: A 3-vector [dx dy dtheta]
@@ -86,8 +34,34 @@ class MotionModel:
 
         ####################################
 
-        # return self.update_pose(particles, odom)
-        new_pose = [self.update_pose(particle, odom) for particle in particles]
-        return np.array(new_pose)
+        # self.node.get_logger().info("in motion eval")
+
+        dx, dy, dtheta = odometry
+
+        x_std = .05 * 2
+        y_std = .01 * 2
+        thetastd = np.pi / 30 * 2
+
+        particles = np.array(particles)
+        ret = np.empty(particles.shape)
+
+        count = 0
+
+        for prtcl in particles:
+            xnoise = x_std * np.random.normal() if not self.deterministic else 0
+            ynoise = y_std * np.random.normal() if not self.deterministic else 0
+            thetanoise = thetastd * np.random.normal() if not self.deterministic else 0
+
+            x, y, theta = prtcl[0], prtcl[1], prtcl[2]
+            prev_trans_vec = np.array([[x], [y]])
+            rot = self.rotation_matrix(theta)
+
+            new_trans_vec = np.dot(rot, np.array([[dx + xnoise], [dy + ynoise]])) + prev_trans_vec
+            new_row = np.append(new_trans_vec, theta + (-dtheta + thetanoise))
+            ret[count] = new_row
+
+            count += 1
+
+        return ret
 
         ####################################

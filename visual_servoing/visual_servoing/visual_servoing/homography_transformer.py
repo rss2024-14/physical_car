@@ -52,7 +52,7 @@ class HomographyTransformer(Node):
         self.cone_px_sub = self.create_subscription(ConeLocationPixel, "/relative_cone_px", self.cone_detection_callback, 1)
         self.mouse_sub = self.create_subscription(
             Point,
-            "/zed/zed_node/rgb/image_rect_color_mouse_left",
+            "/zed/zed_node/rgb/image_rect_color",
             #"/zed/zed_node/rgb/image_rect_color_mouse_left",
             self.mouse_callback,
             10)

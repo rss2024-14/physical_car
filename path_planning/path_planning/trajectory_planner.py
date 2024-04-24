@@ -10,7 +10,6 @@ from .utils import log
 from skimage.morphology import dilation
 from skimage.draw import line
 
-import matplotlib.pyplot as plt
 import tf_transformations
 import numpy as np
 import random
@@ -83,7 +82,7 @@ class PathPlan(Node):
         # Reshaping occupancy grid
         self.get_logger().info("Map data %s" % ( set(map_1d.data), ))
         self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width)).T
-        structure_elt = np.ones((28,28))
+        structure_elt = np.ones((13,13))
         dilated_map = dilation(self.map_2d == 100, structure_elt)
         self.map_2d[dilated_map] = 100
 
@@ -160,6 +159,7 @@ class PathPlan(Node):
                 processed_path = self.postprocess(path)
 
                 for point in processed_path:
+                    log(self, "point in path", point)
                     self.trajectory.addPoint(transform_point(point, self.map_res, self.map_origin, pixel_to_world=True)) # adding the points to the trajectory
                 
                 self.traj_pub.publish(self.trajectory.toPoseArray())
@@ -182,7 +182,7 @@ class PathPlan(Node):
         start_i = 0
         delta = 1
         end_i = start_i + delta
-        processed_path = []
+        processed_path = [path[0]]
 
         while end_i < len(path) - 1:
             log(self, "Subpath indices", (start_i, end_i))
@@ -191,7 +191,7 @@ class PathPlan(Node):
                 end_i += delta
                 subpath = build_subpath(start_i, end_i)
 
-            processed_path += [path[start_i], path[end_i]]
+            processed_path.append(path[end_i])
             start_i = end_i
             end_i += delta
 
@@ -290,7 +290,6 @@ def transform_point(coord, res, offsets, pixel_to_world=True):
 
     # Return the transformed point (x', y')
     return tuple([p_prime[0, 0], p_prime[1, 0]])
-
 
 def main(args=None):
     rclpy.init(args=args)

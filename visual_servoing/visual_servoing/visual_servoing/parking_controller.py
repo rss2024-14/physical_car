@@ -6,6 +6,7 @@ import numpy as np
 
 from vs_msgs.msg import ConeLocation, ParkingError
 from ackermann_msgs.msg import AckermannDriveStamped
+from geometry_msgs.msg import PointStamped, Point
 
 class ParkingController(Node):
     """
@@ -26,12 +27,17 @@ class ParkingController(Node):
         self.create_subscription(ConeLocation, "/relative_cone", 
             self.relative_cone_callback, 1)
 
-        self.velocity = 0.7
+        self.create_subscription(PointStamped, "/clicked_point", self.display_point, 1)
+
+        self.velocity = 1.0
         self.parking_distance = 0.2 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
 
         self.get_logger().info("Parking Controller Initialized")
+    
+    def display_point(self, msg):
+        self.get_logger().info("COORDS1 %s %s" % (msg.point.x, msg.point.y))
 
     def relative_cone_callback(self, msg):
         self.relative_x = msg.x_pos
@@ -54,7 +60,8 @@ class ParkingController(Node):
         # if self.relative_x < 0:
         #     drive_cmd.drive.speed = -1.0 * self.velocity
         #     drive_cmd.drive.steering_angle = 0.0
-        self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
+
+        #self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
 
         if self.relative_distance < (self.parking_distance - 0.15):
             drive_cmd.drive.speed = -1.0 * self.velocity

@@ -50,9 +50,13 @@ def cd_color_segmentation(img, template=None):
 	lower = np.array(boundaries_high[0], dtype='uint8')
 
 	mask = cv2.inRange(img_hsv, lower, upper)
-
+ 
+	# sensitivity = 15
+	# lower_white = np.array([0,0,255], dtype='uint8')
+	# upper_white = np.array([255,0,230], dtype='uint8')
+	# mask = cv2.inRange(img_hsv, lower_white, upper_white)
+	
 	contours = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)[0]
-
 
 	bounding_box = ((0,0),(0,0))
 
@@ -63,6 +67,7 @@ def cd_color_segmentation(img, template=None):
 		bounding_box = ((x1,y1), (x1+xdelta, y1+ydelta))
 
 	return bounding_box
+
 
 
 if __name__ == "__main__":

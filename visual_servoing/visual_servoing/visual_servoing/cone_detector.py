@@ -56,11 +56,37 @@ class ConeDetector(Node):
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
         # h, w = image_orig.shape[:2]
         # self.get_logger().info("%s" % (h*w,))
+
+        # height, width = image.shape[:2]
+        #  # Calculate the width of each segment
+        # segment_width = width // 4
+    
+        # # Extract the second segment from the left
+        # left_segment_start = segment_width
+        # left_segment_end = segment_width * 2
+        # cropped_image = image[:, left_segment_start:left_segment_end]
+        # bounds = cd_color_segmentation(cropped_image)
+        # coord1, coord2 = bounds
+        # # coord11, coord21 = bounds2
+
+        # x1, y1 = coord1
+        # x2, y2 = coord2
+        # # Calculate the coordinates relative to the original image
+        # x1_orig = x1 + left_segment_start
+        # x2_orig = x2 + left_segment_start
+        # y1_orig = y1
+        # y2_orig = y2
+
         image2 = image[195:245,:]
+        # translation_matrix = np.float32([[1,0,-160],[0,1,0]])
+        # img2_rows, img2_cols = image2.shape[:2]
+        # image3 = cv2.warpAffine(image2, translation_matrix, (img2_cols, img2_rows))
+        # bounds = cd_color_segmentation(image3)
         bounds = cd_color_segmentation(image2)
-        # bounds2 = cd_color_segmentation(image2)
         coord1, coord2 = bounds
         # coord11, coord21 = bounds2
+
+        
 
         x1, y1 = coord1
         x2, y2 = coord2
@@ -78,8 +104,15 @@ class ConeDetector(Node):
 
         self.cone_pub.publish(pixel_img_msg)
 
-        cv2.rectangle(image, (x1,y1+ 195), (x2,y2+ 195), (255,0,0),2)
+        #cv2.rectangle(image, (x1,y1+ 195), (x2,y2+ 195), (255,0,0),2)
+        # img_rows, img_cols = image.shape[:2]
 
+        # image[img_rows//2-5:img_rows//2+6, img_cols//2] = (255,0,0) 
+        # image[img_rows//2, img_cols//2-5:img_cols//2+6] = (255,0,0)
+
+        # cv2.rectangle(image, (x1_orig, y1_orig), (x2_orig, y2_orig), (255, 0, 0), 2)
+        cv2.rectangle(image, (x1,y1+ 195), (x2,y2+ 195), (255,0,0),2)
+        
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
         self.debug_pub.publish(debug_msg)
 
