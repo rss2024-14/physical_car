@@ -56,6 +56,7 @@ class ConeDetector(Node):
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
         # h, w = image_orig.shape[:2]
         # self.get_logger().info("%s" % (h*w,))
+        h, w = image.shape[:2]
 
         # height, width = image.shape[:2]
         #  # Calculate the width of each segment
@@ -67,52 +68,74 @@ class ConeDetector(Node):
         # cropped_image = image[:, left_segment_start:left_segment_end]
         # bounds = cd_color_segmentation(cropped_image)
         # coord1, coord2 = bounds
-        # # coord11, coord21 = bounds2
+        # coord11, coord21 = bounds2
 
-        # x1, y1 = coord1
-        # x2, y2 = coord2
-        # # Calculate the coordinates relative to the original image
+        # Calculate the coordinates relative to the original image
         # x1_orig = x1 + left_segment_start
         # x2_orig = x2 + left_segment_start
         # y1_orig = y1
         # y2_orig = y2
+        bar_image = image[175:200, :]
+        left_half = image[175:200,:w//2]
+        
+        ### NEW CODE ###
 
-        image2 = image[195:245,:]
-        # translation_matrix = np.float32([[1,0,-160],[0,1,0]])
+        right_half = image[175:200, (w//2):]
+        right_bounds = cd_color_segmentation(right_half)
+        right_coord1, right_coord2 = right_bounds
+
+        right_x1, right_y1 = right_coord1
+        right_x2, right_y2 = right_coord2
+        ################
+        # translation_matrix = np.float32([[1,0,-90],[0,1,0]])
         # img2_rows, img2_cols = image2.shape[:2]
-        # image3 = cv2.warpAffine(image2, translation_matrix, (img2_cols, img2_rows))
+
+        # image3 = image2[:, img2_cols//3:(img2_cols//3) * 2]
+
+        #image3 = cv2.warpAffine(image2, translation_matrix, (img2_cols, img2_rows))
         # bounds = cd_color_segmentation(image3)
-        bounds = cd_color_segmentation(image2)
-        coord1, coord2 = bounds
+        left_bounds = cd_color_segmentation(left_half)
+        left_coord1, left_coord2 = left_bounds
         # coord11, coord21 = bounds2
 
         
 
-        x1, y1 = coord1
-        x2, y2 = coord2
+        left_x1, left_y1 = left_coord1
+        left_x2, left_y2 = left_coord2
 
         # x11, y11 = coord11
         # x21, y21 = coord21
-
-        self.get_logger().info("COORDS1 %s %s %s %s" % (x1, y1, x2, y2))
+        self.get_logger().info("colcon build done")
+       # self.get_logger().info("COORDS1 %s %s %s %s" % (x1, y1, x2, y2))
         # self.get_logger().info("COORDS2 %s %s %s %s" % (x11, y11, x21, y21))
+        #self.get_logger().info("run")
+
+        x1 = (left_x1 + right_x1+w//2 - 50)//2
+        x2 = (left_x2 + right_x2+w//2 - 50)//2
+        y1 = (left_y1 + right_y1)//2
+        y2 = (left_y2 + right_y2)//2
 
         pixel_img_msg = ConeLocationPixel()
-
-        pixel_img_msg.u = float((x1 + x2)//2)
-        pixel_img_msg.v = float(y2 + 195)
+        # pixel_img_msg.u = float((x1 + x2)//2 + 155) #+ img2_cols//3)
+        # pixel_img_msg.u = float((x1 + x2)//2 - 30) #+ img2_cols//3)
+        pixel_img_msg.u = float((x1 + x2)//2) #+ img2_cols//3)
+        pixel_img_msg.v = float(y2 + 175)
 
         self.cone_pub.publish(pixel_img_msg)
 
-        #cv2.rectangle(image, (x1,y1+ 195), (x2,y2+ 195), (255,0,0),2)
-        # img_rows, img_cols = image.shape[:2]
-
-        # image[img_rows//2-5:img_rows//2+6, img_cols//2] = (255,0,0) 
-        # image[img_rows//2, img_cols//2-5:img_cols//2+6] = (255,0,0)
-
-        # cv2.rectangle(image, (x1_orig, y1_orig), (x2_orig, y2_orig), (255, 0, 0), 2)
-        cv2.rectangle(image, (x1,y1+ 195), (x2,y2+ 195), (255,0,0),2)
+        #cv2.rectangle(image3, (x1,y1), (x2,y2), (255,0,0),2)
+        # cv2.rectangle(image, (x1+img2_cols//3,y1+ 195), (x2+img2_cols//3,y2+ 195), (255,0,0),2)
+        # # img_rows, img_cols = image.shape[:2]
+        # self.get_logger().info("colcon build done")
+        # #cv2.rectangle(image, (x1_orig, y1_orig), (x2_orig, y2_orig), (0, 255, 0), 2)
         
+
+
+        #cv2.rectangle(image, (x1,y1+175), (x2,y2+175), (255,0,0),2)
+        cv2.rectangle(bar_image, (right_x1 + w//2, right_y1), (right_x2+w//2, right_y2), (0,255,0),2)
+        cv2.rectangle(bar_image, (left_x1, left_y1), (left_x2, left_y2), (0,255,0),2)
+        #cv2.rectangle(bar_image, (x1, y1 + 175), (x2, y2 + 175), (0,255,0),2)
+        #self.get_logger().info("image")
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
         self.debug_pub.publish(debug_msg)
 

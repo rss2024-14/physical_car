@@ -6,7 +6,10 @@ import numpy as np
 
 from vs_msgs.msg import ConeLocation, ParkingError
 from ackermann_msgs.msg import AckermannDriveStamped
-from geometry_msgs.msg import PointStamped, Point
+from sensor_msgs.msg import LaserScan
+
+
+import time
 
 class ParkingController(Node):
     """
@@ -27,24 +30,27 @@ class ParkingController(Node):
         self.create_subscription(ConeLocation, "/relative_cone", 
             self.relative_cone_callback, 1)
 
-        self.create_subscription(PointStamped, "/clicked_point", self.display_point, 1)
+        self.create_subscription(LaserScan, "/scan", self.stored_cone_callback, 1)
 
-        self.velocity = 1.0
+        self.velocity = 2.5
+        
         self.parking_distance = 0.2 # meters; try playing with this number!
         self.relative_x = 0
         self.relative_y = 0
+        self.relative_distance = 0
+        self.relative_angle = 0
+        # Variables for PID
+        self.PID = PIDController(Kp=0.10, Ki=0.0, Kd=0.0, setpoint=self.parking_distance)
+        self.prev_time = time.time()
 
         self.get_logger().info("Parking Controller Initialized")
-    
-    def display_point(self, msg):
-        self.get_logger().info("COORDS1 %s %s" % (msg.point.x, msg.point.y))
 
     def relative_cone_callback(self, msg):
         self.relative_x = msg.x_pos
         self.relative_y = msg.y_pos
         self.relative_distance = np.sqrt(self.relative_x**2 + self.relative_y**2)
         self.relative_angle = np.arctan(self.relative_y/self.relative_x) # rad
-        drive_cmd = AckermannDriveStamped()
+        # drive_cmd = AckermannDriveStamped()
 
         #################################
 
@@ -57,35 +63,63 @@ class ParkingController(Node):
         # If the cone is behind the car, back the car up until the cone is in front of the car
         # If the cone is too close to the car, back up the car up
         # If the cone is too far from the car, move towards the cone
+        # If the cone is to the right of the car, the steering angle is negative
+        # If the cone is to the left of the car, the steering angle is positive
         # if self.relative_x < 0:
         #     drive_cmd.drive.speed = -1.0 * self.velocity
         #     drive_cmd.drive.steering_angle = 0.0
+        # elif self.relative_distance > (self.parking_distance + 0.15):
+        #     drive_cmd.drive.speed = self.velocity
+        #     drive_cmd.drive.steering_angle = self.relative_angle
+        # if self.relative_distance < (self.parking_distance - 0.15):
+        #     drive_cmd.drive.speed = -1.0 * self.velocity
+        #     drive_cmd.drive.steering_angle = 0.0
+        # elif self.relative_distance <= (self.parking_distance + 0.15) and self.relative_distance >= (self.parking_distance - 0.15):
+        #     if self.relative_angle > 0.15:
+        #         drive_cmd.drive.speed = -1.0 * self.velocity
+        #         drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
+        #     elif self.relative_angle < -0.15:
+        #         drive_cmd.drive.speed = -1.0 * self.velocity
+        #         drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
+        #     elif self.relative_angle <= 0.15 and self.relative_angle >= -0.15:
+        #         drive_cmd.drive.speed = 0.0
+        #         drive_cmd.drive.steering_angle = 0.0
+        
+        # self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
 
-        #self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
+        # error = (self.relative_distance - self.parking_distance) + self.relative_angle
+        # error = self.relative_angle
+        # current_time = time.time()
+        # dt = current_time - self.prev_time
+        # steering_angle = self.PID.update(error, dt)
+        # self.get_logger().info("steering angle %s" % (steering_angle))
+        # self.prev_time = current_time
+        # drive_cmd.drive.speed = self.velocity
+        # drive_cmd.drive.steering_angle = steering_angle
 
-        if self.relative_distance < (self.parking_distance - 0.15):
-            drive_cmd.drive.speed = -1.0 * self.velocity
-            drive_cmd.drive.steering_angle = 0.0
-        elif self.relative_distance > (self.parking_distance + 0.15):
-            # If the cone is to the right of the car, the steering angle is negative
-            # If the cont is to the left of the car, the steering angle is positive
-            drive_cmd.drive.speed = self.velocity
-            drive_cmd.drive.steering_angle = self.relative_angle
-        elif self.relative_distance <= (self.parking_distance + 0.15) and self.relative_distance >= (self.parking_distance - 0.15):
-            if self.relative_angle > 0.15:
-                drive_cmd.drive.speed = -1.0 * self.velocity
-                drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
-            elif self.relative_angle < -0.15:
-                drive_cmd.drive.speed = -1.0 * self.velocity
-                drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
-            elif self.relative_angle <= 0.15 and self.relative_angle >= -0.15:
-                drive_cmd.drive.speed = 0.0
-                drive_cmd.drive.steering_angle = 0.0
+        # drive_cmd.header.stamp = self.get_clock().now().to_msg()
+        # drive_cmd.header.frame_id = "/base_link"
+        # self.drive_pub.publish(drive_cmd)
+        # self.error_publisher()
+    
+    def stored_cone_callback(self, msg):
+
+        # self.get_logger().info("drive command given")
+
+        drive_cmd = AckermannDriveStamped()
+        error = self.relative_angle
+        current_time = time.time()
+        dt = current_time - self.prev_time
+        steering_angle = self.PID.update(error, dt)
+        self.get_logger().info("steering angle %s" % (steering_angle))
+        self.prev_time = current_time
+        drive_cmd.drive.speed = self.velocity
+        drive_cmd.drive.steering_angle = steering_angle
 
         drive_cmd.header.stamp = self.get_clock().now().to_msg()
         drive_cmd.header.frame_id = "/base_link"
         self.drive_pub.publish(drive_cmd)
-        self.error_publisher()
+
 
     def error_publisher(self):
         """
@@ -106,6 +140,27 @@ class ParkingController(Node):
         error_msg.distance_error = self.relative_distance
         self.error_pub.publish(error_msg)
 
+class PIDController:
+    def __init__(self, Kp, Ki, Kd, setpoint):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.setpoint = setpoint
+        self.previous_error = 0
+        self.integral = 0
+
+    def update(self, error, dt):
+        self.integral += error * dt
+        derivative = (error - self.previous_error) / dt
+
+        P_out = self.Kp * error
+        I_out = self.Ki * self.integral
+        D_out = self.Kd * derivative
+
+        self.previous_error = error
+        return P_out + I_out + D_out
+
+
 def main(args=None):
     rclpy.init(args=args)
     pc = ParkingController()
@@ -114,4 +169,12 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
+
+
 
