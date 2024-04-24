@@ -58,6 +58,27 @@ class ConeDetector(Node):
         # self.get_logger().info("%s" % (h*w,))
         h, w = image.shape[:2]
 
+        ## Trapezoid ##
+                         
+        #pts = np.array([[w//2-75, int(h//2.5)], [w//2+75, int(h//2.5)], [w, int((h//4)*2.25)], [w,h], [0,h],[0, int((h//4)*2.25)]])
+        #rect = cv2.boundingRect(pts)
+        #tx, ty, tw, th = rect
+        #cropped = image[ty:ty+th, tx:tx+tw].copy()
+
+        #pts = pts - pts.min(axis=0)
+
+        #mask = np.zeros(cropped.shape[:2], np.uint8)
+        #cv2.drawContours(mask, [pts], -1, (255,255,255), -1, cv2.LINE_AA)
+
+        #dst = cv2.bitwise_and(cropped, cropped, mask=mask)
+
+        #bg = np.ones_like(cropped, np.uint8)*0
+        #cv2.bitwise_not(bg, bg, mask=mask)
+        #image = bg+dst
+                         
+        ################
+
+
         # height, width = image.shape[:2]
         #  # Calculate the width of each segment
         # segment_width = width // 4
@@ -75,18 +96,21 @@ class ConeDetector(Node):
         # x2_orig = x2 + left_segment_start
         # y1_orig = y1
         # y2_orig = y2
-        bar_image = image[175:200, :]
-        left_half = image[175:200,:w//2]
+        bar_image = image[175:225, :]
+        left_half = image[175:225,:w//2]
         
         ### NEW CODE ###
 
-        right_half = image[175:200, (w//2):]
+        right_half = image[175:225, (w//2):]
         right_bounds = cd_color_segmentation(right_half)
         right_coord1, right_coord2 = right_bounds
 
         right_x1, right_y1 = right_coord1
         right_x2, right_y2 = right_coord2
-        ################
+
+
+
+               
         # translation_matrix = np.float32([[1,0,-90],[0,1,0]])
         # img2_rows, img2_cols = image2.shape[:2]
 
@@ -110,8 +134,8 @@ class ConeDetector(Node):
         # self.get_logger().info("COORDS2 %s %s %s %s" % (x11, y11, x21, y21))
         #self.get_logger().info("run")
 
-        x1 = (left_x1 + right_x1+w//2 - 50)//2
-        x2 = (left_x2 + right_x2+w//2 - 50)//2
+        x1 = (left_x1 + right_x1+w//2)//2
+        x2 = (left_x2 + right_x2+w//2)//2
         y1 = (left_y1 + right_y1)//2
         y2 = (left_y2 + right_y2)//2
 
@@ -132,8 +156,8 @@ class ConeDetector(Node):
 
 
         #cv2.rectangle(image, (x1,y1+175), (x2,y2+175), (255,0,0),2)
-        cv2.rectangle(bar_image, (right_x1 + w//2, right_y1), (right_x2+w//2, right_y2), (0,255,0),2)
-        cv2.rectangle(bar_image, (left_x1, left_y1), (left_x2, left_y2), (0,255,0),2)
+        cv2.rectangle(image, (right_x1 + w//2, right_y1+175), (right_x2+w//2, right_y2+175), (0,255,0),2)
+        cv2.rectangle(image, (left_x1, left_y1+175), (left_x2, left_y2+175), (0,255,0),2)
         #cv2.rectangle(bar_image, (x1, y1 + 175), (x2, y2 + 175), (0,255,0),2)
         #self.get_logger().info("image")
         debug_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")

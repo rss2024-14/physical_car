@@ -32,7 +32,7 @@ class ParkingController(Node):
 
         self.create_subscription(LaserScan, "/scan", self.stored_cone_callback, 1)
 
-        self.velocity = 2.5
+        self.velocity = 3.5
         
         self.parking_distance = 0.2 # meters; try playing with this number!
         self.relative_x = 0
@@ -40,7 +40,7 @@ class ParkingController(Node):
         self.relative_distance = 0
         self.relative_angle = 0
         # Variables for PID
-        self.PID = PIDController(Kp=0.10, Ki=0.0, Kd=0.0, setpoint=self.parking_distance)
+        self.PID = PIDController(Kp=0.15, Ki=0.0, Kd=0.5, setpoint=self.parking_distance)
         self.prev_time = time.time()
 
         self.get_logger().info("Parking Controller Initialized")
@@ -111,10 +111,10 @@ class ParkingController(Node):
         current_time = time.time()
         dt = current_time - self.prev_time
         steering_angle = self.PID.update(error, dt)
-        self.get_logger().info("steering angle %s" % (steering_angle))
+        self.get_logger().info("new steering angle%s" % (steering_angle))
         self.prev_time = current_time
         drive_cmd.drive.speed = self.velocity
-        drive_cmd.drive.steering_angle = steering_angle
+        drive_cmd.drive.steering_angle = steering_angle + 0.03
 
         drive_cmd.header.stamp = self.get_clock().now().to_msg()
         drive_cmd.header.frame_id = "/base_link"
