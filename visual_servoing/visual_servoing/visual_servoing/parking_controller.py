@@ -32,7 +32,7 @@ class ParkingController(Node):
 
         self.create_subscription(LaserScan, "/scan", self.stored_cone_callback, 1)
 
-        self.velocity = 2.5
+        self.velocity = 3.0
         
         self.parking_distance = 0.2 # meters; try playing with this number!
         self.relative_x = 0
@@ -111,6 +111,10 @@ class ParkingController(Node):
         current_time = time.time()
         dt = current_time - self.prev_time
         steering_angle = self.PID.update(error, dt)
+        # if steering_angle < -0.017:
+        #    steering_angle = -0.017
+        # if steering_angle > 0.017:
+        #    steering_angle = 0.017
         self.get_logger().info("steering angle %s" % (steering_angle))
         self.prev_time = current_time
         drive_cmd.drive.speed = self.velocity

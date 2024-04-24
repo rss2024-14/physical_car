@@ -45,7 +45,7 @@ def cd_color_segmentation(img, template=None):
 	img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
 	#boundaries_high = ([5, 100, 100],[17, 255, 255])
-	boundaries_high = ([0,0,200], [180,25,255])
+	boundaries_high = ([0,0,175], [180,35,255])
 
 	upper = np.array(boundaries_high[1], dtype='uint8')
 	lower = np.array(boundaries_high[0], dtype='uint8')
