@@ -2,7 +2,7 @@ import numpy as np
 import rclpy
 import tf2_ros
 import threading
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseArray, Pose, TransformStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseArray, Pose, TransformStamped, PointStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from scipy.stats import circmean
@@ -45,8 +45,10 @@ class ParticleFilter(Node):
         self.listener = tf2_ros.TransformListener(self.tfBuffer, self)
         self.best_p = -1
 
+        self.clicked_point = False
+
         # Get parameters
-        self.num_particles = 1000.0
+        self.num_particles = 400.0
         self.weights = np.ones(
             int(self.num_particles)) / self.num_particles  # start with uniform weight for each particle
         self.particles = np.zeros((int(self.num_particles), 3))
@@ -106,7 +108,14 @@ class ParticleFilter(Node):
                                                  self.pose_callback,
                                                  1)
 
+        self.clicked_sub = self.create_subscription(PointStamped, '/clicked_point',
+                                                 self.clicked_callback,
+                                                 1)
+
         self.get_logger().info("=============meow +READY+ meow=============")
+
+    def clicked_callback(self, msg):
+        self.clicked_point = True
 
     def getOdometryMsg(self, debug=True):
         """
@@ -175,6 +184,9 @@ class ParticleFilter(Node):
         """
         update + resample
         """
+        if self.clicked_point:
+            return
+
         # self.get_logger().info("In laser callback")
         if not self.sensor_model.map_set:
             return
