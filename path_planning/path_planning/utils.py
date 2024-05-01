@@ -235,3 +235,6 @@ class LineTrajectory:
         header.stamp = stamp
         header.frame_id = frame_id
         return header
+
+def log(self, label, msg):
+    self.get_logger().info("%s :: %s" % (label, msg))
