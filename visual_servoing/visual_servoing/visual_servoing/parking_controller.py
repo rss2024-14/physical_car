@@ -57,9 +57,14 @@ class ParkingController(Node):
         # If the cone is behind the car, back the car up until the cone is in front of the car
         # If the cone is too close to the car, back up the car up
         # If the cone is too far from the car, move towards the cone
+        # If the cone is to the right of the car, the steering angle is negative
+        # If the cone is to the left of the car, the steering angle is positive
         # if self.relative_x < 0:
         #     drive_cmd.drive.speed = -1.0 * self.velocity
         #     drive_cmd.drive.steering_angle = 0.0
+        # elif self.relative_distance > (self.parking_distance + 0.15):
+        #     drive_cmd.drive.speed = self.velocity
+        #     drive_cmd.drive.steering_angle = self.relative_angle
         # if self.relative_distance < (self.parking_distance - 0.15):
         #     drive_cmd.drive.speed = -1.0 * self.velocity
         #     drive_cmd.drive.steering_angle = 0.0
@@ -73,6 +78,7 @@ class ParkingController(Node):
         #     elif self.relative_angle <= 0.15 and self.relative_angle >= -0.15:
         #         drive_cmd.drive.speed = 0.0
         #         drive_cmd.drive.steering_angle = 0.0
+        
         self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
 
         error = (self.relative_distance - self.parking_distance) + self.relative_angle
@@ -82,12 +88,6 @@ class ParkingController(Node):
         self.prev_time = current_time
         drive_cmd.drive.speed = self.velocity
         drive_cmd.drive.steering_angle = steering_angle
-
-        # if self.relative_distance > (self.parking_distance + 0.15):
-            # If the cone is to the right of the car, the steering angle is negative
-            # If the cont is to the left of the car, the steering angle is positive
-            # drive_cmd.drive.speed = self.velocity
-            # drive_cmd.drive.steering_angle = self.relative_angle
 
         drive_cmd.header.stamp = self.get_clock().now().to_msg()
         drive_cmd.header.frame_id = "/base_link"
