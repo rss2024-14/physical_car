@@ -7,6 +7,8 @@ import numpy as np
 from vs_msgs.msg import ConeLocation, ParkingError
 from ackermann_msgs.msg import AckermannDriveStamped
 
+import time
+
 class ParkingController(Node):
     """
     A controller for parking in front of a cone.
@@ -31,6 +33,10 @@ class ParkingController(Node):
         self.relative_x = 0
         self.relative_y = 0
 
+        # Variables for PID
+        self.PID = PIDController(Kp=1.0, Ki=0.1, Kd=0.05, setpoint=self.parking_distance)
+        self.prev_time = time.time()
+
         self.get_logger().info("Parking Controller Initialized")
 
     def relative_cone_callback(self, msg):
@@ -54,26 +60,34 @@ class ParkingController(Node):
         # if self.relative_x < 0:
         #     drive_cmd.drive.speed = -1.0 * self.velocity
         #     drive_cmd.drive.steering_angle = 0.0
+        # if self.relative_distance < (self.parking_distance - 0.15):
+        #     drive_cmd.drive.speed = -1.0 * self.velocity
+        #     drive_cmd.drive.steering_angle = 0.0
+        # elif self.relative_distance <= (self.parking_distance + 0.15) and self.relative_distance >= (self.parking_distance - 0.15):
+        #     if self.relative_angle > 0.15:
+        #         drive_cmd.drive.speed = -1.0 * self.velocity
+        #         drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
+        #     elif self.relative_angle < -0.15:
+        #         drive_cmd.drive.speed = -1.0 * self.velocity
+        #         drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
+        #     elif self.relative_angle <= 0.15 and self.relative_angle >= -0.15:
+        #         drive_cmd.drive.speed = 0.0
+        #         drive_cmd.drive.steering_angle = 0.0
         self.get_logger().info("RELATIVE DISTANCE %s" % (self.relative_distance))
 
-        if self.relative_distance < (self.parking_distance - 0.15):
-            drive_cmd.drive.speed = -1.0 * self.velocity
-            drive_cmd.drive.steering_angle = 0.0
-        elif self.relative_distance > (self.parking_distance + 0.15):
+        error = (self.relative_distance - self.parking_distance) + self.relative_angle
+        current_time = time.time()
+        dt = current_time - self.prev_time
+        steering_angle = self.PID.update(error, dt)
+        self.prev_time = current_time
+        drive_cmd.drive.speed = self.velocity
+        drive_cmd.drive.steering_angle = steering_angle
+
+        # if self.relative_distance > (self.parking_distance + 0.15):
             # If the cone is to the right of the car, the steering angle is negative
             # If the cont is to the left of the car, the steering angle is positive
-            drive_cmd.drive.speed = self.velocity
-            drive_cmd.drive.steering_angle = self.relative_angle
-        elif self.relative_distance <= (self.parking_distance + 0.15) and self.relative_distance >= (self.parking_distance - 0.15):
-            if self.relative_angle > 0.15:
-                drive_cmd.drive.speed = -1.0 * self.velocity
-                drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
-            elif self.relative_angle < -0.15:
-                drive_cmd.drive.speed = -1.0 * self.velocity
-                drive_cmd.drive.steering_angle = -1.0 * self.relative_angle
-            elif self.relative_angle <= 0.15 and self.relative_angle >= -0.15:
-                drive_cmd.drive.speed = 0.0
-                drive_cmd.drive.steering_angle = 0.0
+            # drive_cmd.drive.speed = self.velocity
+            # drive_cmd.drive.steering_angle = self.relative_angle
 
         drive_cmd.header.stamp = self.get_clock().now().to_msg()
         drive_cmd.header.frame_id = "/base_link"
@@ -98,6 +112,27 @@ class ParkingController(Node):
         error_msg.y_error = self.relative_y
         error_msg.distance_error = self.relative_distance
         self.error_pub.publish(error_msg)
+
+class PIDController:
+    def __init__(self, Kp, Ki, Kd, setpoint):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.setpoint = setpoint
+        self.previous_error = 0
+        self.integral = 0
+
+    def update(self, error, dt):
+        self.integral += error * dt
+        derivative = (error - self.previous_error) / dt
+
+        P_out = self.Kp * error
+        I_out = self.Ki * self.integral
+        D_out = self.Kd * derivative
+
+        self.previous_error = error
+        return P_out + I_out + D_out
+
 
 def main(args=None):
     rclpy.init(args=args)
