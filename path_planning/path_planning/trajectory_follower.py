@@ -9,7 +9,7 @@ import tf_transformations
 from .utils import log
 from nav_msgs.msg import Odometry
 import numpy as np
-
+from std_msgs.msg import Int32
 from .utils import LineTrajectory
 
 
@@ -25,15 +25,13 @@ class PurePursuit(Node):
         self.odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
         self.drive_topic = self.get_parameter('drive_topic').get_parameter_value().string_value
 
-        self.lookahead = 0.6  # FILL IN #
-        self.speed = 0.5 # FILL IN #
+        self.lookahead = 0.5  # FILL IN #
+        self.speed = 7.0 # FILL IN #
         self.wheelbase_length = .3  # FILL IN #
         self.initialized_traj = False
 
         self.index_in_path = None
         self.homogeneous_pts = None
-        self.actual_traj = None
-        self.print_traj = False
 
         self.trajectory = LineTrajectory("/followed_trajectory")
 
@@ -74,20 +72,21 @@ class PurePursuit(Node):
 
         target = self.trajectory.points[self.index_in_path]
         if self.distance(target, robot_xy) < self.lookahead:
-            self.index_in_path = min(self.index_in_path + 1, len(self.trajectory.points)-1)
-            log(self, "Seeking new index", self.index_in_path)
+            self.index_in_path = min(self.index_in_path + 1, len(pts)-1)
+            target = self.trajectory.points[self.index_in_path]
 
-        # Collecting points for actual trajectory
-        if self.actual_traj is None:
-            self.actual_traj = []
+        self.actual_traj += [robot_xy]
+        # log(self, "pose callback", "")
         
-        self.actual_traj.append(tuple(robot_xy))
-        
-        if self.index_in_path == len(pts) - 1:
-            if not self.print_traj:
-                self.get_logger().info(f"Actual Trajectory: {self.actual_traj}")
-                self.get_logger().info(f"Planned Trajectory: {pts}")
-                self.print_traj = True
+        if self.index_in_path == len(pts) - 1 and self.distance(target, robot_xy) < self.lookahead:
+            log(self, "Actual trajectory", self.actual_traj)
+            self.get_logger().info(f"Planned Trajectory: {pts}")
+            if not self.saved: 
+                np.savetxt("actual_traj_curved.csv", self.actual_traj)
+                # np.savetxt("actual_traj_y.csv", list(map(lambda x: x[1], self.actual_traj)), ",")
+                np.savetxt("planned_curved.csv", pts)
+                # np.savetxt("planned_y.csv", list(map(lambda x: x[1], pts)), ",")
+                self.saved = True
         
         target_in_robot_frame = world_to_robot_tf @ self.homogenize_pt(target)
         target_rotation = self.angle(target_in_robot_frame)
@@ -100,6 +99,8 @@ class PurePursuit(Node):
     def trajectory_callback(self, msg):
         self.get_logger().info(f"Receiving new trajectory {len(msg.poses)} points")
 
+        self.actual_traj = []
+        self.saved = False
         self.trajectory.clear()
         self.trajectory.fromPoseArray(msg)
         self.trajectory.publish_viz(duration=0.0)

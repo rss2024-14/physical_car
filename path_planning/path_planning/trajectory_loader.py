@@ -14,13 +14,18 @@ class LoadTrajectory(Node):
     def __init__(self):
         super().__init__("trajectory_loader")
 
-        self.declare_parameter("trajectory", "default")
-        self.path = self.get_parameter("trajectory").get_parameter_value().string_value
+        self.declare_parameter("trajectory1", "default")
+        self.declare_parameter("trajectory2", "default")
+        
+        self.path1 = self.get_parameter("trajectory1").get_parameter_value().string_value
+        self.path2 = self.get_parameter("trajectory2").get_parameter_value().string_value
 
         # initialize and load the trajectory
-        self.trajectory = LineTrajectory(self, "/loaded_trajectory")
-        self.get_logger().info(f"Loading from {self.path}")
-        self.trajectory.load(self.path)
+        self.trajectory1 = LineTrajectory(self, "/loaded_trajectory")
+        self.trajectory2 = LineTrajectory(self, "/loaded_trajectory")
+        self.get_logger().info(f"Loading from {self.path1}")
+        self.trajectory1.load(self.path1)
+        self.trajectory2.load(self.path2)
 
         self.pub_topic = "/trajectory/current"
         self.traj_pub = self.create_publisher(PoseArray, self.pub_topic, 1)
@@ -29,14 +34,16 @@ class LoadTrajectory(Node):
         time.sleep(0.5)
 
         # visualize the loaded trajectory
-        self.trajectory.publish_viz()
+        self.trajectory1.publish_viz()
+        self.trajectory2.publish_viz()
 
         # send the trajectory
         self.publish_trajectory()
 
     def publish_trajectory(self):
         print("Publishing trajectory to:", self.pub_topic)
-        self.traj_pub.publish(self.trajectory.toPoseArray())
+        self.traj_pub.publish(self.trajectory1.toPoseArray())
+        self.traj_pub.publish(self.trajectory2.toPoseArray())
 
 
 def main(args=None):

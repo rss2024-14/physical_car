@@ -6,47 +6,42 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, PoseArray
 from nav_msgs.msg import OccupancyGrid
 from .utils import LineTrajectory
 from .utils import log
-
-from skimage.morphology import dilation
-from skimage.draw import line
-
-import matplotlib.pyplot as plt
+from geometry_msgs.msg import PointStamped
 import tf_transformations
-import numpy as np
-import random
-import math
 
+import math
+import numpy as np
+
+import json
 
 class PathPlan(Node):
-    """ Listens for goal pose published by RViz and uses it to plan a path from
-    current car pose.
-    """
-
     def __init__(self):
         super().__init__("trajectory_planner")
-        self.declare_parameter('odom_topic', "default")
         self.declare_parameter('map_topic', "default")
-        self.declare_parameter('initial_pose_topic', "default")
+        self.declare_parameter('from_start_traj', "default")
+        self.declare_parameter('to_start_traj', "default")
 
-        self.odom_topic = self.get_parameter('odom_topic').get_parameter_value().string_value
+        # idk if this is how we want to keep track of which traj on but also I figure we can pull out from the dict if we don't already for the other code
         self.map_topic = self.get_parameter('map_topic').get_parameter_value().string_value
-        self.initial_pose_topic = self.get_parameter('initial_pose_topic').get_parameter_value().string_value
+        self.from_start_traj = self.get_parameter('from_start_traj').get_parameter_value().string_value
+        self.to_start_traj = self.get_parameter('to_start_traj').get_parameter_value().string_value
 
-        # Set map 2d, initial pose, and goal pose to None (awaiting map 2d, inital pose, and goal pose)
-        self.map_2d = None
-        self.initial_pose = None
-        self.goal_pose = None
+        self.current_traj = self.parse_traj_file(self.from_start_traj) 
+        self.opp_traj = self.parse_traj_file(self.to_start_traj) 
+        self.clicked_points = []
+
+        self.trajectory = LineTrajectory(node=self, viz_namespace="/planned_trajectory")
 
         self.map_sub = self.create_subscription(
             OccupancyGrid,
             self.map_topic,
             self.map_cb,
             1)
-
-        self.goal_sub = self.create_subscription(
-            PoseStamped,
-            "/goal_pose",
-            self.goal_cb,
+        
+        self.clicked_point_sub = self.create_subscription(
+            PointStamped,
+            '/clicked_point',
+            self.clicked_cb,
             10
         )
 
@@ -55,15 +50,18 @@ class PathPlan(Node):
             "/trajectory/current",
             10
         )
+    
+    def parse_traj_file(self, fname):
+        # Open the file and load JSON data
+        with open(fname) as f:
+            data = json.load(f)
 
-        self.pose_sub = self.create_subscription(
-            PoseWithCovarianceStamped,
-            self.initial_pose_topic,
-            self.pose_cb,
-            10
-        )
+        # Extract the "points" data
+        points_data = data["points"]
 
-        self.trajectory = LineTrajectory(node=self, viz_namespace="/planned_trajectory")
+        # Create a list of (x, y) points
+        return [(point["x"], point["y"]) for point in points_data]
+
 
     def map_cb(self, map_1d):
         # The /map topic only publishes once, so this function will only be ran once
@@ -80,217 +78,192 @@ class PathPlan(Node):
         orientation = euler[2]
         self.map_origin = (map_1d.info.origin.position.x, map_1d.info.origin.position.y, orientation)
 
-        # Reshaping occupancy grid
-        self.get_logger().info("Map data %s" % ( set(map_1d.data), ))
-        self.map_2d = np.array(map_1d.data).reshape((self.map_height, self.map_width)).T
-        structure_elt = np.ones((28,28))
-        dilated_map = dilation(self.map_2d == 100, structure_elt)
-        self.map_2d[dilated_map] = 100
-
-        # self.map_2d[self.map_2d == -1] = -100
-        # plt.imshow(self.map_2d, cmap='hot', interpolation='nearest')
-        # plt.show()
-
-
-    def pose_cb(self, start):
-        self.get_logger().info('Received Initial Position')
-
-        x = start.pose.pose.position.x
-        y = start.pose.pose.position.y
-
-        self.initial_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False) 
-        self.initial_pose = (int(self.initial_pose[0]), int(self.initial_pose[1]))
-
-    def goal_cb(self, end):
-        self.get_logger().info('Received Goal Position')
-
-        x = end.pose.position.x
-        y = end.pose.position.y
-
-        self.goal_pose = transform_point((x,y), self.map_res, self.map_origin, pixel_to_world=False)
-
-        # Find path from initial pose to goal pose once goal pose has been set
-        self.plan_path(self.initial_pose, self.goal_pose, self.map_2d)
-
-    def plan_path(self, start_point, end_point, map):
-        self.get_logger().info("Finding Trajectory")
+    def clicked_cb(self, msg):
+        if len(self.clicked_points) < 3:
+            self.clicked_points.append([msg.point.x, msg.point.y])
         
-        start_node = Node(start_point, parent=None) # make the start point a node
+        if len(self.clicked_points) == 3:
+            self.main_stuff_happening(self.clicked_points)
 
-        nodes = set() # initializing empty set for nodes
-        nodes.add(start_node)
+    def generate_interpolated_traj(self, trajectory, distance):
+        """
+        Based on our trajectories, create new ones with interpolated points
+        """
+        interpolated_traj = []
 
-        counter = 0 # keeps track of iterations
-        lim = 5000 # number of iterations algorithm should run for
-        step = 7.0 # length of the step taken for next_point
-        error = 10.0 # valid error around goal pose
-        goal_probability = .4 # rate at which the goal point is picked
-
-        while counter < lim:
-            # Randomly generate a point in map
-            if np.random.rand() < goal_probability:
-                random_pt = self.goal_pose
-            else:
-                random_pt = (random.randint(0, self.map_width-1), random.randint(0, self.map_height-1))
-            # self.get_logger().info("x_rand %s // y_rand %s" % random_pt)
-
-            nearest_node = find_nearest_node(nodes, random_pt)
+        for i in range(len(trajectory) - 1):
+            p1 = trajectory[i]
+            p2 = trajectory[i + 1]
             
-            # self.get_logger().info("nearest_node %s " % (nearest_node.value,))
+            # Calculate the total distance between current pair of points
+            total_distance = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+            
+            # Determine the number of segments needed
+            num_segments = int(total_distance / distance)
+            
+            # Generate linear interpolations for x and y coordinates
+            x_values = np.linspace(p1[0], p2[0], num_segments + 1)
+            y_values = np.linspace(p1[1], p2[1], num_segments + 1)
+            
+            # Append each generated point to the list, avoiding duplication of the endpoint
+            points = np.column_stack((x_values, y_values))
 
-            if random_pt == nearest_node.value:
-                continue
+            interpolated_traj.extend(points[:-1].tolist())
 
-            next_point = find_next_point(nearest_node.value, random_pt, step)
-            # self.get_logger().info("next_point " + str(next_point))
+        # Add in the final point that was excluded
+        interpolated_traj.append(trajectory[-1])
 
-            # Checking if next point is valid(occupied space = 100, unoccupied space = 0, unknown space = -1 )
-            # self.get_logger().info("nodes %s" % ( len(nodes), ))
-            if (map[next_point[0]][next_point[1]] == 100) or (map[next_point[0]][next_point[1]] == -1): 
-                # self.get_logger().info("skipping " + str(map[next_point[0]][next_point[1]]))
-                continue
+        return interpolated_traj
 
-            next_node = Node(next_point, parent=nearest_node)
+    def find_closest_point(self, point, trajectory):
+        """
+        Finds index of the closest point in the trajectory and returns it with its distance to point
+        """
+        min_distance = float("inf")
+        closest_idx = 0
+        x1,y1 = point
 
-            nodes.add(next_node)
+        for idx, traj_point in enumerate(trajectory):
+            x2, y2 = traj_point
+            distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-            # Checking if goal pose has been reached
-            if (end_point[0]-error <= next_point[0] <= end_point[0]+error) and (end_point[1]-error <= next_point[1] <= end_point[1]+error):
-                path = next_node.path_from_root() # finding the path from initial to goal
-                processed_path = self.postprocess(path)
+            if distance < min_distance:
+                closest_idx = idx
+                min_distance = distance
 
-                for point in processed_path:
-                    self.trajectory.addPoint(transform_point(point, self.map_res, self.map_origin, pixel_to_world=True)) # adding the points to the trajectory
+        return (closest_idx, min_distance)
+
+    def find_encasing_indices(self, point, trajectory):
+        """
+        Find which indices in the trajectory the point would come between
+        """
+        temp_trajectory = trajectory.copy()
                 
-                self.traj_pub.publish(self.trajectory.toPoseArray())
-                self.trajectory.publish_viz()
+        #Finding two closest points in original trajectory
+        closest_idx, _ = self.find_closest_point(point, temp_trajectory)
+        temp_trajectory[closest_idx] = (1000, 1000)   #Arbitrarily large number to remove from consideration
+        closest_idx_2, _ = self.find_closest_point(point, temp_trajectory)
 
-                break
-            
-            counter += 1
+        # Returning in order of smaller index
+        return sorted([closest_idx, closest_idx_2])
 
-    def postprocess(self, path):
-        def intersection(subpath):
-            return np.sum( (subpath == 1) & ( (self.map_2d == 100) | (self.map_2d == -1) ) ) >= 30
+    def transform_point(self, coord, res, offsets, pixel_to_world=True):
+        """
+        coord  : coordinates of the original point (x, y)
+        res: scaling factors along the x and y axes
+        offsets : (tx, ty, theta)
+
+        Returns tuple of point (x', y')
+        """
+        # Create the scaling matrix
+        S = np.array([[res, 0,  0],
+                    [0,  res, 0],
+                    [0,  0,  1]])
+
+        # Create the rotation matrix
+        R = np.array([[np.cos(offsets[2]), -np.sin(offsets[2]), 0],
+                    [np.sin(offsets[2]),  np.cos(offsets[2]), 0],
+                    [0,             0,              1]])
         
-        def build_subpath(start_i, end_i):
-            img = np.zeros(self.map_2d.shape)
-            rr, cc = line(path[start_i][0], path[start_i][1], path[end_i][0], path[end_i][1])
-            img[rr, cc] = 1
-            return img
+        # Create the translation matrix
+        T = np.array([[1, 0, offsets[0]],
+                    [0, 1, offsets[1]],
+                    [0, 0,  1]])
 
-        start_i = 0
-        delta = 1
-        end_i = start_i + delta
-        processed_path = []
+        # Create the point vector
+        p = np.array([[coord[0]],
+                    [coord[1]],
+                    [1]])
 
-        while end_i < len(path) - 1:
-            log(self, "Subpath indices", (start_i, end_i))
-            subpath = build_subpath(start_i, end_i)
-            while not intersection(subpath) and end_i < len(path) - 1:
-                end_i += delta
-                subpath = build_subpath(start_i, end_i)
-
-            processed_path += [path[start_i], path[end_i]]
-            start_i = end_i
-            end_i += delta
-
-        return processed_path
-
-
-class Node:
-    def __init__(self, value, parent=None):
-        self.value = value
-        self.parent = parent
-
-    def path_from_root(self):
-        """ Return the sequence of nodes from the root to this node """
-        if self.parent is None:
-            return [self.value]
+        # Apply the transformations: first scale, then rotate, then translate
+        if pixel_to_world:
+            p_prime = T @ (R @ (S @ p))
         else:
-            path_to_parent = self.parent.path_from_root()
-            path_to_parent.append(self.value)
-            return path_to_parent
+            S_inv = np.linalg.inv(S)
+            R_inv = np.linalg.inv(R)
+            T_inv = np.linalg.inv(T)
+            p_prime = S_inv @ (R_inv @ (T_inv @ p))
+
+        # Return the transformed point (x', y')
+        return tuple([p_prime[0, 0], p_prime[1, 0]])
+
+    def main_stuff_happening(self, goals):
+        current_index = 0
+        planned_trajectory = [self.current_traj[0]]
+
+        interp_dis = 1 #To play with and decide
+        interpolated_current = self.generate_interpolated_traj(self.current_traj, interp_dis)
+        interpolated_opp = self.generate_interpolated_traj(self.opp_traj, interp_dis)
+
+        goals.append(self.opp_traj[-1])
+
+        for goal in goals:
+
+            closest_in_current = self.find_closest_point(goal, interpolated_current)
+            closest_in_opp = self.find_closest_point(goal, interpolated_opp)
+
+            # Is on this side of the road and ahead (no turns necessary)
+            if (closest_in_current[1] <= closest_in_opp[1]) and (closest_in_current[0] >= current_index):
+                before, after = self.find_encasing_indices(goal, self.current_traj)
+
+                planned_trajectory.extend(self.current_traj[current_index + 1 : before + 1])
+                planned_trajectory.append(goal) #Goal with STOP marker
+                #Iffy, I want it to get back on next point to resume from track but could have issues
+                planned_trajectory.append(self.current_traj[after])
+                current_index = after
 
 
-def find_nearest_node(nodes, new_point):
-    """
-    points: a set of nodes
-    new_point: (x, y) of a new point
-    """
-    nearest_vertex = None
-    min_distance = float('inf')  # Start with infinity as the minimum distance
-    
-    for node in nodes:
-        coord = node.value
-        # Calculate the Euclidean distance
-        distance = math.sqrt((coord[0] - new_point[0])**2 + (coord[1] - new_point[1])**2)
+            #Is on other side of the road or behind (turn(s) necessary)
+            else:
+                current_point = self.current_traj[current_index]
+                #If I were on opposite side now, where would I be relative to point
+                robot_idx, turn_pt = self.find_encasing_indices(current_point, self.opp_traj)
+                goal_idx, _ = self.find_encasing_indices(goal, self.opp_traj)
+
+                same_side_behind = (closest_in_current[1] <= closest_in_opp[1])
+                opposite_ahead = (robot_idx < goal_idx)
+
+                #If same-side behind or opposite ahead, make a turn first
+                if same_side_behind or opposite_ahead:
+                    #Choosing the later point that we are between to uturn chase
+                    planned_trajectory.append(self.opp_traj[turn_pt])
+
+                    ## SWITCHED DIRECTIONS ##
+                    current_index = turn_pt
+                    self.current_traj, self.opp_traj = self.opp_traj, self.current_traj
+                    interpolated_current, interpolated_opp = interpolated_opp, interpolated_current
+
+                # Straight away
+                before, after = self.find_encasing_indices(goal, self.current_traj)
+                planned_trajectory.extend(self.current_traj[current_index + 1 : before + 1])
+
+                if opposite_ahead:
+                    planned_trajectory.extend([goal, self.current_traj[after]])
+                    current_index = after
+
+                # Still needs one final turn
+                else:
+                    planned_trajectory.extend([self.current_traj[after], goal])
+                    #Taking it to next point after goal
+                    after_goal = self.find_encasing_indices(goal, self.opp_traj)[1]
+                    planned_trajectory.append(self.opp_traj[after_goal])
+                    current_index = after_goal
+
+                    ## SWITCHED DIRECTIONS ##
+                    current_index = after_goal
+                    self.current_traj, self.opp_traj = self.opp_traj, self.current_traj
+                    interpolated_current, interpolated_opp = interpolated_opp, interpolated_current
+
+        for point in planned_trajectory:
+            self.trajectory.addPoint(point) # adding the points to the trajectory
         
-        # Update the closest point if a new minimum distance is found
-        if distance < min_distance:
-            min_distance = distance
-            nearest_vertex = node
-
-    return nearest_vertex
+        self.traj_pub.publish(self.trajectory.toPoseArray())
+        self.trajectory.publish_viz()
 
 
-def find_next_point(point_a, point_b, length):
-    # Calculate the displacement vector
-    d = [b - a for a, b in zip(point_a, point_b)]
-    
-    # Calculate the magnitude of the displacement vector
-    magnitude = math.sqrt(sum(comp ** 2 for comp in d))
-    
-    # Normalize the vector to get the unit vector, then scale it by the desired length
-    if magnitude == 0:
-        raise ValueError("The points are identical; cannot determine a unique direction vector.")
-    scaled_vector = [(comp / magnitude) * length for comp in d]
-
-    next_point = [int(a + b) for a, b in zip(point_a, scaled_vector)]
-    
-    return tuple(next_point)
-
-
-def transform_point(coord, res, offsets, pixel_to_world=True):
-    """
-    coord  : coordinates of the original point (x, y)
-    res: scaling factors along the x and y axes
-    offsets : (tx, ty, theta)
-
-    Returns tuple of point (x', y')
-    """
-    # Create the scaling matrix
-    S = np.array([[res, 0,  0],
-                  [0,  res, 0],
-                  [0,  0,  1]])
-
-    # Create the rotation matrix
-    R = np.array([[np.cos(offsets[2]), -np.sin(offsets[2]), 0],
-                  [np.sin(offsets[2]),  np.cos(offsets[2]), 0],
-                  [0,             0,              1]])
-    
-    # Create the translation matrix
-    T = np.array([[1, 0, offsets[0]],
-                  [0, 1, offsets[1]],
-                  [0, 0,  1]])
-
-    # Create the point vector
-    p = np.array([[coord[0]],
-                  [coord[1]],
-                  [1]])
-
-    # Apply the transformations: first scale, then rotate, then translate
-    if pixel_to_world:
-        p_prime = T @ (R @ (S @ p))
-    else:
-        S_inv = np.linalg.inv(S)
-        R_inv = np.linalg.inv(R)
-        T_inv = np.linalg.inv(T)
-        p_prime = S_inv @ (R_inv @ (T_inv @ p))
-
-    # Return the transformed point (x', y')
-    return tuple([p_prime[0, 0], p_prime[1, 0]])
-
+#Unaddressed edge cases:s
+#   Goal point is not between two trajectory points (aka at very end or sum)
+#   Distance from goal to trajectory points is too small 
 
 def main(args=None):
     rclpy.init(args=args)

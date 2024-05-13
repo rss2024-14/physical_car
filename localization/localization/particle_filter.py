@@ -130,7 +130,7 @@ class ParticleFilter(Node):
 
                 # Actually calling motion model with particles and new deltaX
                 delta_x = v * dt
-                self.get_logger().info("delta_x %s odom %s" % (delta_x, v))
+                # self.get_logger().info("delta_x %s odom %s" % (delta_x, v))
 
                 self.particles = self.motion_model.evaluate(self.particles, delta_x)
                 self.prev_time = current_time
