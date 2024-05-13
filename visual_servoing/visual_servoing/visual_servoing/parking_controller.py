@@ -32,7 +32,7 @@ class ParkingController(Node):
 
         self.create_subscription(LaserScan, "/scan", self.stored_cone_callback, 1)
 
-        self.velocity = 3.0
+        self.velocity = 2.0
         
         self.parking_distance = 0.2 # meters; try playing with this number!
         self.relative_x = 0
@@ -40,7 +40,7 @@ class ParkingController(Node):
         self.relative_distance = 0
         self.relative_angle = 0
         # Variables for PID
-        self.PID = PIDController(Kp=0.15, Ki=0.0, Kd=0.0, setpoint=self.parking_distance)
+        self.PID = PIDController(Kp=0.15, Ki=0.0, Kd=0.02, setpoint=self.parking_distance)
         self.prev_time = time.time()
 
         self.get_logger().info("Parking Controller Initialized")
@@ -100,7 +100,7 @@ class ParkingController(Node):
         # drive_cmd.header.stamp = self.get_clock().now().to_msg()
         # drive_cmd.header.frame_id = "/base_link"
         # self.drive_pub.publish(drive_cmd)
-        # self.error_publisher()
+        self.error_publisher()
     
     def stored_cone_callback(self, msg):
 
@@ -142,6 +142,8 @@ class ParkingController(Node):
         error_msg.x_error = self.relative_x
         error_msg.y_error = self.relative_y
         error_msg.distance_error = self.relative_distance
+        #error_msg.
+
         self.error_pub.publish(error_msg)
 
 class PIDController:
